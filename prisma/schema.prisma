@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Perfil {
+  APOIO_ACADEMICO
+  OPERADOR_TI
+  ADMINISTRADOR
+}
+
+enum StatusReserva {
+  CRIADA
+  AGUARDANDO_CONFIRMACAO
+  CONFIRMADA
+  CONFLITO_DE_DATAS
+  REJEITADA
+}
+
+enum TipoEvento {
+  CRIACAO
+  ENVIO_CSC
+  NOTIFICACAO_TEAMS
+  CONFIRMACAO
+  REJEICAO
+  CONFLITO_DETECTADO
+  REAGENDAMENTO
+  GOOGLE_CALENDAR_CRIADO
+  GOOGLE_CALENDAR_ATUALIZADO
+}
+
+// ─── Usuários e Autenticação ──────────────────────────────────────────────────
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  senhaHash    String
+  perfil       Perfil   @default(APOIO_ACADEMICO)
+  ativo        Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  sessoes             Sessao[]
+  solicitacoesCriadas SolicitacaoReserva[] @relation("CriadaPor")
+  tramitacoes         HistoricoTramitacao[]
+
+  @@map("usuarios")
+}
+
+model Sessao {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  usuarioId    String
+  expires      DateTime
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("sessoes")
+}
+
+// ─── Entidades Acadêmicas ─────────────────────────────────────────────────────
+
+model Professor {
+  id           String   @id @default(cuid())
+  nome         String
+  email        String   @unique
+  matricula    String?  @unique
+  departamento String?
+  ativo        Boolean  @default(true)
+  criadoEm    DateTime @default(now())
+
+  turmas   Turma[]
+  reservas SolicitacaoReserva[]
+
+  @@map("professores")
+}
+
+model Turma {
+  id          String   @id @default(cuid())
+  codigo      String   @unique
+  nome        String
+  semestre    String
+  professorId String
+  criadoEm   DateTime @default(now())
+
+  professor Professor            @relation(fields: [professorId], references: [id])
+  reservas  SolicitacaoReserva[]
+
+  @@map("turmas")
+}
+
+model Laboratorio {
+  id          String   @id @default(cuid())
+  nome        String
+  codigo      String   @unique
+  capacidade  Int
+  recursos    String[]
+  localizacao String?
+  ativo       Boolean  @default(true)
+  criadoEm   DateTime @default(now())
+
+  reservas SolicitacaoReserva[]
+
+  @@map("laboratorios")
+}
+
+// ─── Reservas (núcleo da máquina de estados) ─────────────────────────────────
+
+model SolicitacaoReserva {
+  id             String        @id @default(cuid())
+  titulo         String
+  descricao      String?
+  status         StatusReserva @default(CRIADA)
+  motivoRejeicao String?
+  cscProtocolo   String?
+  googleEventId  String?
+
+  solicitanteId String
+  professorId   String
+  turmaId       String
+  laboratorioId String?
+
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  solicitante Usuario             @relation("CriadaPor", fields: [solicitanteId], references: [id])
+  professor   Professor           @relation(fields: [professorId], references: [id])
+  turma       Turma               @relation(fields: [turmaId], references: [id])
+  laboratorio Laboratorio?        @relation(fields: [laboratorioId], references: [id])
+
+  datas     DataHorarioReserva[]
+  historico HistoricoTramitacao[]
+  anexos    Anexo[]
+
+  @@map("solicitacoes_reserva")
+}
+
+model DataHorarioReserva {
+  id         String   @id @default(cuid())
+  reservaId  String
+  dataInicio DateTime
+  dataFim    DateTime
+  recorrente Boolean  @default(false)
+
+  reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  @@map("datas_horario_reserva")
+}
+
+// ─── Auditoria ────────────────────────────────────────────────────────────────
+
+model HistoricoTramitacao {
+  id           String        @id @default(cuid())
+  reservaId    String
+  usuarioId    String
+  evento       TipoEvento
+  statusAntes  StatusReserva?
+  statusDepois StatusReserva?
+  observacao   String?
+  metadados    Json?
+  criadoEm    DateTime      @default(now())
+
+  reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  usuario Usuario            @relation(fields: [usuarioId], references: [id])
+
+  @@map("historico_tramitacao")
+}
+
+model Anexo {
+  id          String   @id @default(cuid())
+  reservaId   String
+  nomeArquivo String
+  url         String
+  tamanho     Int
+  mimeType    String
+  criadoEm   DateTime @default(now())
+
+  reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  @@map("anexos")
+}
+
+model LogIntegracao {
+  id         String   @id @default(cuid())
+  servico    String
+  endpoint   String
+  metodo     String
+  payload    Json?
+  resposta   Json?
+  statusHttp Int?
+  erro       String?
+  criadoEm  DateTime @default(now())
+
+  @@map("logs_integracao")
+}
