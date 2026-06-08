@@ -48,6 +48,7 @@ model Usuario {
   nome         String
   email        String   @unique
   senhaHash    String
+  codigoPessoa Int      @unique
   perfil       Perfil   @default(APOIO_ACADEMICO)
   ativo        Boolean  @default(true)
   criadoEm    DateTime @default(now())
