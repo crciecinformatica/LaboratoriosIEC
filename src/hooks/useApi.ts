@@ -163,7 +163,7 @@ export function useDeleteUsuario() {
 // ─── Reservas ─────────────────────────────────────────────────────────────────
 
 export function useReservas(status = '', page = 1, limit = DEFAULT_LIMIT) {
-  return useGet<ReservaListItem>(
+  return useGet<PaginatedReservas>(
     ['reservas'],
     '/api/reservas',
     {
@@ -174,11 +174,59 @@ export function useReservas(status = '', page = 1, limit = DEFAULT_LIMIT) {
   )
 }
 
+export function useReserva(id: string) {
+  return useGet<ReservaDetalhe>(['reservas', id], `/api/reservas/${id}`)
+}
+
 export function useCreateReserva() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: unknown) => axios.post('/api/reservas', data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
+export function useConfirmReserva() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { reservaId: string; laboratorioId: string }) =>
+      axios.post('/api/reservas/confirmar', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
+export function useRejectReserva() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { reservaId: string; motivoRejeicao: string }) =>
+      axios.post('/api/reservas/rejeitar', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
+export function useMarcarConflitoReserva() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (reservaId: string) =>
+      axios.post('/api/reservas/conflito', { reservaId }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
+export function useUploadAnexo(reservaId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return axios.post(`/api/reservas/${reservaId}/anexos`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then((r) => r.data)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas', reservaId] })
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+    },
   })
 }
 
@@ -215,8 +263,44 @@ type UsuarioPublico = {
   id: string; nome: string; email: string; perfil: string; ativo: boolean; criadoEm: string
 }
 
-type ReservaListItem = {
-  reservas: unknown[]; total: number; page: number; limit: number
+type ReservaResumo = {
+  id: string
+  titulo: string
+  status: string
+  criadoEm: string
+  solicitante: { id: string; nome: string }
+  professor: { id: string; nome: string }
+  turma: { id: string; codigo: string; nome: string }
+  laboratorio: { id: string; nome: string; codigo: string } | null
+  datas: { id: string; dataInicio: string; dataFim: string; recorrente: boolean }[]
 }
 
-export type { Laboratorio, Professor, Turma, UsuarioPublico }
+type PaginatedReservas = PaginatedResponse<ReservaResumo, 'reservas'>
+
+type ReservaDetalhe = ReservaResumo & {
+  descricao: string | null
+  motivoRejeicao: string | null
+  solicitante: { id: string; nome: string; email: string }
+  professor: { id: string; nome: string; email: string }
+  turma: { id: string; codigo: string; nome: string; semestre: string }
+  laboratorio: { id: string; nome: string; codigo: string; capacidade: number } | null
+  historico: {
+    id: string
+    evento: string
+    statusAntes: string | null
+    statusDepois: string | null
+    observacao: string | null
+    criadoEm: string
+    usuario: { id: string; nome: string }
+  }[]
+  anexos: {
+    id: string
+    nomeArquivo: string
+    url: string
+    tamanho: number
+    mimeType: string
+    criadoEm: string
+  }[]
+}
+
+export type { Laboratorio, Professor, Turma, UsuarioPublico, ReservaResumo, ReservaDetalhe }

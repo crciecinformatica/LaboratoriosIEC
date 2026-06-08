@@ -40,6 +40,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   }
 
+  if (!temPermissao(session.user.perfil, 'reservas', 'listar')) {
+    return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))

@@ -57,3 +57,15 @@ export const statusColor: Record<StatusReserva, string> = {
   CONFLITO_DE_DATAS:      'red',
   REJEITADA:              'coral',
 }
+
+export const eventoLabel: Record<TipoEvento, string> = {
+  CRIACAO:                  'Solicitação criada',
+  ENVIO_CSC:                'Enviado ao CSC',
+  NOTIFICACAO_TEAMS:        'Notificação Teams',
+  CONFIRMACAO:              'Reserva confirmada',
+  REJEICAO:                 'Reserva rejeitada',
+  CONFLITO_DETECTADO:       'Conflito de datas detectado',
+  REAGENDAMENTO:            'Reagendamento',
+  GOOGLE_CALENDAR_CRIADO:   'Evento Google Calendar criado',
+  GOOGLE_CALENDAR_ATUALIZADO: 'Evento Google Calendar atualizado',
+}

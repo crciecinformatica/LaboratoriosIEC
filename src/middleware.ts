@@ -18,8 +18,13 @@ export default withAuth(
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
 
+    // Nova reserva: Apoio Acadêmico e Administrador
+    if (pathname.startsWith('/reservas/nova') && !(['APOIO_ACADEMICO', 'ADMINISTRADOR'] as Perfil[]).includes(perfil)) {
+      return NextResponse.redirect(new URL('/reservas', req.url))
+    }
+
     // APIs restritas ao operador
-    const rotasOperador = ['/api/reservas/confirmar', '/api/reservas/rejeitar', '/api/reservas/conflito', '/api/integracoes']
+    const rotasOperador = ['/api/reservas/confirmar', '/api/reservas/rejeitar', '/api/reservas/conflito', '/api/reservas/reagendar', '/api/integracoes']
     if (rotasOperador.some((r) => pathname.startsWith(r))) {
       if (!(['OPERADOR_TI', 'ADMINISTRADOR'] as Perfil[]).includes(perfil)) {
         return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })

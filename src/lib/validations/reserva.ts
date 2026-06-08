@@ -2,6 +2,26 @@ import { z } from 'zod'
 
 // ─── Reservas ─────────────────────────────────────────────────────────────────
 
+const dataHorarioInputSchema = z.object({
+  dataInicio: z.string().min(1, 'Informe a data de início'),
+  dataFim: z.string().min(1, 'Informe a data de fim'),
+  recorrente: z.boolean().default(false),
+}).refine((d) => new Date(d.dataFim) > new Date(d.dataInicio), {
+  message: 'Data de fim deve ser posterior ao início',
+  path: ['dataFim'],
+})
+
+export const criarReservaFormSchema = z.object({
+  titulo: z
+    .string()
+    .min(5, 'Título deve ter no mínimo 5 caracteres')
+    .max(120, 'Título muito longo'),
+  descricao: z.string().max(1000).optional(),
+  professorId: z.string().cuid('Professor inválido'),
+  turmaId: z.string().cuid('Turma inválida'),
+  datas: z.array(dataHorarioInputSchema).min(1, 'Informe ao menos uma data'),
+})
+
 export const criarReservaSchema = z.object({
   titulo: z
     .string()
