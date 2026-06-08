@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+// ─── Reservas ─────────────────────────────────────────────────────────────────
+
 export const criarReservaSchema = z.object({
   titulo: z
     .string()
@@ -30,27 +32,77 @@ export const rejeitarReservaSchema = z.object({
     .max(500),
 })
 
+// ─── Laboratórios ─────────────────────────────────────────────────────────────
+
+export const criarLaboratorioSchema = z.object({
+  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
+  codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(20),
+  capacidade: z
+    .number({ invalid_type_error: 'Informe a capacidade' })
+    .int()
+    .min(1, 'Capacidade mínima é 1')
+    .max(500, 'Capacidade máxima é 500'),
+  recursos: z.array(z.string()).default([]),
+  localizacao: z.string().max(200).optional(),
+})
+
+export const editarLaboratorioSchema = criarLaboratorioSchema.partial()
+
+// ─── Professores ──────────────────────────────────────────────────────────────
+
+export const criarProfessorSchema = z.object({
+  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
+  email: z.string().email('Email inválido'),
+  matricula: z.string().max(20).optional(),
+  departamento: z.string().max(100).optional(),
+})
+
+export const editarProfessorSchema = criarProfessorSchema.partial()
+
+// ─── Turmas ───────────────────────────────────────────────────────────────────
+
+export const criarTurmaSchema = z.object({
+  codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(30),
+  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
+  semestre: z
+    .string()
+    .regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2 (ex: 2025/1)'),
+  professorId: z.string().cuid('Selecione um professor'),
+})
+
+export const editarTurmaSchema = criarTurmaSchema.partial()
+
+// ─── Usuários ─────────────────────────────────────────────────────────────────
+
 export const criarUsuarioSchema = z.object({
-  nome: z.string().min(3).max(100),
+  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
   email: z.string().email('Email inválido'),
   senha: z
     .string()
     .min(8, 'Senha deve ter ao menos 8 caracteres')
     .regex(/[A-Z]/, 'Inclua ao menos uma letra maiúscula')
     .regex(/[0-9]/, 'Inclua ao menos um número'),
-  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR']),
+  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'], {
+    errorMap: () => ({ message: 'Selecione um perfil' }),
+  }),
 })
 
-export const criarLaboratorioSchema = z.object({
-  nome: z.string().min(3).max(100),
-  codigo: z.string().min(2).max(20),
-  capacidade: z.number().int().min(1).max(500),
-  recursos: z.array(z.string()).default([]),
-  localizacao: z.string().max(200).optional(),
+export const editarUsuarioSchema = z.object({
+  nome: z.string().min(3).max(100).optional(),
+  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR']).optional(),
+  ativo: z.boolean().optional(),
 })
 
-export type CriarReservaInput = z.infer<typeof criarReservaSchema>
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type CriarReservaInput     = z.infer<typeof criarReservaSchema>
 export type ConfirmarReservaInput = z.infer<typeof confirmarReservaSchema>
-export type RejeitarReservaInput = z.infer<typeof rejeitarReservaSchema>
-export type CriarUsuarioInput = z.infer<typeof criarUsuarioSchema>
+export type RejeitarReservaInput  = z.infer<typeof rejeitarReservaSchema>
 export type CriarLaboratorioInput = z.infer<typeof criarLaboratorioSchema>
+export type EditarLaboratorioInput= z.infer<typeof editarLaboratorioSchema>
+export type CriarProfessorInput   = z.infer<typeof criarProfessorSchema>
+export type EditarProfessorInput  = z.infer<typeof editarProfessorSchema>
+export type CriarTurmaInput       = z.infer<typeof criarTurmaSchema>
+export type EditarTurmaInput      = z.infer<typeof editarTurmaSchema>
+export type CriarUsuarioInput     = z.infer<typeof criarUsuarioSchema>
+export type EditarUsuarioInput    = z.infer<typeof editarUsuarioSchema>
