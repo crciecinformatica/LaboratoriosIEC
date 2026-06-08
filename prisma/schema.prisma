@@ -35,6 +35,12 @@ enum TipoEvento {
   GOOGLE_CALENDAR_ATUALIZADO
 }
 
+enum ModalidadeReserva {
+  PRESENCIAL
+  REMOTO
+  RAS
+}
+
 // ─── Usuários e Autenticação ──────────────────────────────────────────────────
 
 model Usuario {
@@ -71,6 +77,7 @@ model Professor {
   nome         String
   email        String   @unique
   matricula    String?  @unique
+  telefone     String?
   departamento String?
   ativo        Boolean  @default(true)
   criadoEm    DateTime @default(now())
@@ -82,12 +89,15 @@ model Professor {
 }
 
 model Turma {
-  id          String   @id @default(cuid())
-  codigo      String   @unique
-  nome        String
-  semestre    String
-  professorId String
-  criadoEm   DateTime @default(now())
+  id               String   @id @default(cuid())
+  codigo           String   @unique
+  nome             String
+  semestre         String
+  curso            String
+  numOferta        String?
+  codigoDisciplina String
+  professorId      String
+  criadoEm        DateTime @default(now())
 
   professor Professor            @relation(fields: [professorId], references: [id])
   reservas  SolicitacaoReserva[]
@@ -115,11 +125,14 @@ model Laboratorio {
 model SolicitacaoReserva {
   id             String        @id @default(cuid())
   titulo         String
-  descricao      String?
   status         StatusReserva @default(CRIADA)
   motivoRejeicao String?
   cscProtocolo   String?
   googleEventId  String?
+
+  modalidadeReserva   ModalidadeReserva
+  softwaresUtilizados String
+  numeroAlunos        Int
 
   solicitanteId String
   professorId   String
@@ -147,6 +160,7 @@ model DataHorarioReserva {
   dataInicio DateTime
   dataFim    DateTime
   recorrente Boolean  @default(false)
+  emConflito Boolean  @default(false)
 
   reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
 

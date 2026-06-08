@@ -9,15 +9,17 @@ import {
   useConfirmReserva,
   useRejectReserva,
   useMarcarConflitoReserva,
+  useCorrigirConflito,
   useUploadAnexo,
 } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
+import { Modal } from '@/components/ui/modal'
 import { HistoricoTimeline } from '@/components/reservas/historico-timeline'
-import { statusLabel, statusColor } from '@/types'
+import { statusLabel, statusColor, modalidadeLabel } from '@/types'
 import type { StatusReserva } from '@prisma/client'
 import {
-  ChevronLeft, Loader2, CalendarDays, User, BookOpen,
-  FlaskConical, Paperclip, Upload, FileText, Check, X, AlertTriangle,
+  ChevronLeft, Loader2, CalendarDays,
+  Paperclip, Upload, FileText, Check, X, AlertTriangle,
 } from 'lucide-react'
 
 const colorMap: Record<string, string> = {
@@ -34,10 +36,14 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   const confirmar = useConfirmReserva()
   const rejeitar = useRejectReserva()
   const conflito = useMarcarConflitoReserva()
+  const corrigir = useCorrigirConflito()
   const upload = useUploadAnexo(id)
 
   const [labId, setLabId] = useState('')
   const [motivo, setMotivo] = useState('')
+  const [modalConflito, setModalConflito] = useState(false)
+  const [datasConflito, setDatasConflito] = useState<string[]>([])
+  const [correcoes, setCorrecoes] = useState<Record<string, { inicio: string; fim: string }>>({})
 
   const isOperador = ['OPERADOR_TI', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
   const laboratorios = labData?.laboratorios ?? []
@@ -65,12 +71,51 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
     }
   }
 
-  async function handleConflito() {
+  function abrirModalConflito() {
+    if (!reserva) return
+    setDatasConflito(reserva.datas.length === 1 ? [reserva.datas[0].id] : [])
+    setModalConflito(true)
+  }
+
+  async function confirmarConflito() {
+    if (datasConflito.length === 0) {
+      toast.error('Selecione ao menos uma data em conflito.')
+      return
+    }
     try {
-      await conflito.mutateAsync(id)
-      toast.success('Conflito registrado.')
-    } catch {
-      toast.error('Erro ao marcar conflito.')
+      await conflito.mutateAsync({ reservaId: id, dataHorarioIds: datasConflito })
+      toast.success('Conflito registrado. O apoio acadêmico poderá corrigir as datas.')
+      setModalConflito(false)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao marcar conflito'
+      toast.error(msg)
+    }
+  }
+
+  async function handleCorrigirConflitos() {
+    const datasEmConflito = reserva?.datas.filter((d) => d.emConflito) ?? []
+    const correcoesPayload = datasEmConflito.map((d) => {
+      const c = correcoes[d.id]
+      if (!c?.inicio || !c?.fim) return null
+      return {
+        dataHorarioId: d.id,
+        dataInicio: new Date(c.inicio).toISOString(),
+        dataFim: new Date(c.fim).toISOString(),
+      }
+    }).filter(Boolean) as { dataHorarioId: string; dataInicio: string; dataFim: string }[]
+
+    if (correcoesPayload.length === 0) {
+      toast.error('Preencha as novas datas para os horários em conflito.')
+      return
+    }
+
+    try {
+      await corrigir.mutateAsync({ reservaId: id, correcoes: correcoesPayload })
+      toast.success('Datas corrigidas! A solicitação retornou para aguardando confirmação.')
+      setCorrecoes({})
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao corrigir'
+      toast.error(msg)
     }
   }
 
@@ -104,6 +149,9 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   }
 
   const podeAgir = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
+  const podeCorrigir = reserva.status === 'CONFLITO_DE_DATAS' &&
+    (reserva.solicitante.id === session?.user.id ||
+      ['ADMINISTRADOR', 'APOIO_ACADEMICO'].includes(session?.user.perfil ?? ''))
   const podeAnexar = reserva.solicitante.id === session?.user.id || session?.user.perfil === 'ADMINISTRADOR'
 
   return (
@@ -119,9 +167,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
               {statusLabel[reserva.status as StatusReserva]}
             </span>
           </div>
-          {reserva.descricao && (
-            <p className="text-sm text-slate-500 mt-1">{reserva.descricao}</p>
-          )}
+          <p className="text-sm text-slate-500 mt-1">{reserva.turma.nome} — {reserva.turma.curso}</p>
           <p className="text-xs text-slate-400 mt-1">
             Criada em {new Date(reserva.criadoEm).toLocaleString('pt-BR')}
           </p>
@@ -132,36 +178,20 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         {/* Dados */}
         <div className="card p-5 lg:col-span-2 flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-slate-800">Dados da solicitação</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-slate-400" />
-              <div>
-                <p className="text-xs text-slate-400">Professor</p>
-                <p className="text-slate-700">{reserva.professor.nome}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-slate-400" />
-              <div>
-                <p className="text-xs text-slate-400">Turma</p>
-                <p className="text-slate-700">{reserva.turma.codigo} — {reserva.turma.nome}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-slate-400" />
-              <div>
-                <p className="text-xs text-slate-400">Solicitante</p>
-                <p className="text-slate-700">{reserva.solicitante.nome}</p>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div><p className="text-xs text-slate-400">Modalidade</p><p className="text-slate-700">{modalidadeLabel[reserva.modalidadeReserva as keyof typeof modalidadeLabel] ?? reserva.modalidadeReserva}</p></div>
+            <div><p className="text-xs text-slate-400">Professor</p><p className="text-slate-700">{reserva.professor.nome}</p></div>
+            <div><p className="text-xs text-slate-400">Cód. pessoa / matrícula</p><p className="text-slate-700">{reserva.professor.matricula ?? '—'}</p></div>
+            <div><p className="text-xs text-slate-400">Telefone prof.</p><p className="text-slate-700">{reserva.professor.telefone ?? '—'}</p></div>
+            <div><p className="text-xs text-slate-400">Curso</p><p className="text-slate-700">{reserva.turma.curso}</p></div>
+            <div><p className="text-xs text-slate-400">Nº oferta / turma</p><p className="text-slate-700">{reserva.turma.numOferta ?? '—'} / {reserva.turma.codigo}</p></div>
+            <div><p className="text-xs text-slate-400">Cód. disciplina</p><p className="text-slate-700">{reserva.turma.codigoDisciplina}</p></div>
+            <div><p className="text-xs text-slate-400">Disciplina</p><p className="text-slate-700">{reserva.turma.nome}</p></div>
+            <div><p className="text-xs text-slate-400">Softwares</p><p className="text-slate-700">{reserva.softwaresUtilizados}</p></div>
+            <div><p className="text-xs text-slate-400">Nº alunos</p><p className="text-slate-700">{reserva.numeroAlunos}</p></div>
+            <div><p className="text-xs text-slate-400">Solicitante</p><p className="text-slate-700">{reserva.solicitante.nome}</p></div>
             {reserva.laboratorio && (
-              <div className="flex items-center gap-2">
-                <FlaskConical className="w-4 h-4 text-slate-400" />
-                <div>
-                  <p className="text-xs text-slate-400">Laboratório</p>
-                  <p className="text-slate-700">{reserva.laboratorio.nome}</p>
-                </div>
-              </div>
+              <div><p className="text-xs text-slate-400">Laboratório</p><p className="text-slate-700">{reserva.laboratorio.nome}</p></div>
             )}
           </div>
 
@@ -172,9 +202,10 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
             </h3>
             <ul className="flex flex-col gap-1.5">
               {reserva.datas.map((d) => (
-                <li key={d.id} className="text-sm text-slate-700 bg-slate-50 px-3 py-2 rounded-lg">
+                <li key={d.id} className={`text-sm px-3 py-2 rounded-lg flex items-center gap-2 ${d.emConflito ? 'bg-red-50 text-red-800 border border-red-100' : 'bg-slate-50 text-slate-700'}`}>
                   {new Date(d.dataInicio).toLocaleString('pt-BR')} — {new Date(d.dataFim).toLocaleString('pt-BR')}
-                  {d.recorrente && <span className="ml-2 badge badge-blue text-[10px]">Recorrente</span>}
+                  {d.emConflito && <span className="badge badge-red text-[10px]">Em conflito</span>}
+                  {d.recorrente && <span className="badge badge-blue text-[10px]">Recorrente</span>}
                 </li>
               ))}
             </ul>
@@ -233,6 +264,43 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {podeCorrigir && (
+        <div className="card p-5 flex flex-col gap-4">
+          <h2 className="text-sm font-semibold text-slate-800">Corrigir datas em conflito</h2>
+          <p className="text-sm text-slate-500">Informe novos horários apenas para as datas marcadas em conflito pelo operador.</p>
+          {reserva.datas.filter((d) => d.emConflito).map((d) => (
+            <div key={d.id} className="p-3 border border-red-100 rounded-lg flex flex-col gap-2">
+              <p className="text-xs text-red-600 font-medium">
+                Conflito: {new Date(d.dataInicio).toLocaleString('pt-BR')} — {new Date(d.dataFim).toLocaleString('pt-BR')}
+              </p>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="label">Novo início</label>
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={correcoes[d.id]?.inicio ?? ''}
+                    onChange={(e) => setCorrecoes((p) => ({ ...p, [d.id]: { ...p[d.id], inicio: e.target.value, fim: p[d.id]?.fim ?? '' } }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Novo fim</label>
+                  <input
+                    type="datetime-local"
+                    className="input"
+                    value={correcoes[d.id]?.fim ?? ''}
+                    onChange={(e) => setCorrecoes((p) => ({ ...p, [d.id]: { inicio: p[d.id]?.inicio ?? '', fim: e.target.value } }))}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          <button className="btn-primary btn-sm self-start" onClick={handleCorrigirConflitos} disabled={corrigir.isPending}>
+            Enviar correções e retornar para análise
+          </button>
+        </div>
+      )}
+
       {/* Ações do operador */}
       {podeAgir && (
         <div className="card p-5 flex flex-col gap-4">
@@ -252,8 +320,8 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
             </button>
           </div>
           <div className="flex gap-2">
-            <button className="btn-secondary btn-sm" onClick={handleConflito} disabled={conflito.isPending}>
-              <AlertTriangle className="w-3.5 h-3.5" /> Marcar conflito
+            <button className="btn-secondary btn-sm" onClick={abrirModalConflito} disabled={conflito.isPending}>
+              <AlertTriangle className="w-3.5 h-3.5" /> Marcar conflito de datas
             </button>
           </div>
           <div className="form-group">
@@ -270,6 +338,34 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
           </button>
         </div>
       )}
+      <Modal open={modalConflito} onClose={() => setModalConflito(false)} title="Selecionar datas em conflito" size="sm">
+        <div className="px-6 py-4 flex flex-col gap-3">
+          <p className="text-sm text-slate-600">Marque quais horários possuem conflito de agenda.</p>
+          {reserva.datas.map((d) => (
+            <label key={d.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1 rounded"
+                checked={datasConflito.includes(d.id)}
+                onChange={(e) => {
+                  setDatasConflito((prev) =>
+                    e.target.checked ? [...prev, d.id] : prev.filter((x) => x !== d.id)
+                  )
+                }}
+              />
+              <span className="text-sm text-slate-700">
+                {new Date(d.dataInicio).toLocaleString('pt-BR')} — {new Date(d.dataFim).toLocaleString('pt-BR')}
+              </span>
+            </label>
+          ))}
+          <div className="flex justify-end gap-2 pt-2">
+            <button className="btn-secondary btn-sm" onClick={() => setModalConflito(false)}>Cancelar</button>
+            <button className="btn-primary btn-sm" onClick={confirmarConflito} disabled={conflito.isPending}>
+              Confirmar conflito
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

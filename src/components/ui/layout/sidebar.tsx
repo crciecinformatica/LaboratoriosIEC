@@ -6,6 +6,7 @@ import { Perfil } from '@prisma/client'
 import {
   LayoutDashboard, CalendarDays, FlaskConical,
   Users, GraduationCap, BookOpen, Settings, ChevronRight,
+  Columns3, CalendarRange,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +20,8 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: 'Dashboard',     href: '/dashboard',    icon: LayoutDashboard, perfis: ['APOIO_ACADEMICO','OPERADOR_TI','ADMINISTRADOR'] },
   { label: 'Reservas',      href: '/reservas',     icon: CalendarDays,    perfis: ['APOIO_ACADEMICO','OPERADOR_TI','ADMINISTRADOR'] },
+  { label: 'Kanban',        href: '/kanban',       icon: Columns3,        perfis: ['OPERADOR_TI','ADMINISTRADOR'] },
+  { label: 'Calendário',    href: '/calendario',   icon: CalendarRange,   perfis: ['APOIO_ACADEMICO','OPERADOR_TI','ADMINISTRADOR'] },
   { label: 'Laboratórios',  href: '/laboratorios', icon: FlaskConical,    perfis: ['APOIO_ACADEMICO','OPERADOR_TI','ADMINISTRADOR'] },
   { label: 'Professores',   href: '/professores',  icon: GraduationCap,   perfis: ['OPERADOR_TI','ADMINISTRADOR'] },
   { label: 'Turmas',        href: '/turmas',       icon: BookOpen,        perfis: ['OPERADOR_TI','ADMINISTRADOR'] },

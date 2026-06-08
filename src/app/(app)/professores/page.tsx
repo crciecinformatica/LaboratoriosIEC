@@ -33,7 +33,7 @@ export default function ProfessoresPage() {
   const professores = data?.professores ?? []
   const total = data?.total ?? 0
   const limit = data?.limit ?? 20
-  const colSpan = 6
+  const colSpan = 7
 
   const atualizar = useUpdateProfessor(editing?.id ?? '')
 
@@ -48,7 +48,7 @@ export default function ProfessoresPage() {
 
   function openCreate() {
     setEditing(null)
-    reset({ nome: '', email: '', matricula: '', departamento: '' })
+    reset({ nome: '', email: '', matricula: '', telefone: '', departamento: '' })
     setModalOpen(true)
   }
 
@@ -58,6 +58,7 @@ export default function ProfessoresPage() {
       nome: prof.nome,
       email: prof.email,
       matricula: prof.matricula ?? '',
+      telefone: prof.telefone ?? '',
       departamento: prof.departamento ?? '',
     })
     setModalOpen(true)
@@ -73,6 +74,7 @@ export default function ProfessoresPage() {
     const payload = {
       ...formData,
       matricula: formData.matricula || undefined,
+      telefone: formData.telefone || undefined,
       departamento: formData.departamento || undefined,
     }
     try {
@@ -127,6 +129,7 @@ export default function ProfessoresPage() {
                 <th>Nome</th>
                 <th>Email</th>
                 <th>Matrícula</th>
+                <th>Telefone</th>
                 <th>Departamento</th>
                 <th>Turmas / Reservas</th>
                 <th className="text-right">Ações</th>
@@ -155,6 +158,7 @@ export default function ProfessoresPage() {
                   </td>
                   <td className="text-slate-600">{prof.email}</td>
                   <td>{prof.matricula ?? '—'}</td>
+                  <td className="text-slate-500">{prof.telefone ?? '—'}</td>
                   <td className="text-slate-500">{prof.departamento ?? '—'}</td>
                   <td>
                     <span className="text-xs text-slate-500">
@@ -207,9 +211,14 @@ export default function ProfessoresPage() {
               <input {...register('matricula')} className="input" placeholder="12345" />
             </div>
             <div className="form-group">
-              <label className="label">Departamento</label>
-              <input {...register('departamento')} className="input" placeholder="Informática" />
+              <label className="label">Telefone</label>
+              <input {...register('telefone')} className="input" placeholder="(11) 99999-0000" />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="label">Departamento</label>
+            <input {...register('departamento')} className="input" placeholder="Informática" />
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

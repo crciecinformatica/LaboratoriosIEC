@@ -8,6 +8,8 @@ const TIPOS_PERMITIDOS = [
   'image/webp',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
 
 const MAX_BYTES = 10 * 1024 * 1024

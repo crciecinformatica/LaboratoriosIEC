@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await ReservaService.marcarConflito(parse.data.reservaId, session.user.id)
+    await ReservaService.marcarConflito(
+      parse.data.reservaId,
+      parse.data.dataHorarioIds,
+      session.user.id
+    )
     return NextResponse.json({ ok: true })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao marcar conflito'

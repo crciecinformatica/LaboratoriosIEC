@@ -23,8 +23,13 @@ export default withAuth(
       return NextResponse.redirect(new URL('/reservas', req.url))
     }
 
+    // Kanban: somente operador
+    if (pathname.startsWith('/kanban') && !(['OPERADOR_TI', 'ADMINISTRADOR'] as Perfil[]).includes(perfil)) {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+
     // APIs restritas ao operador
-    const rotasOperador = ['/api/reservas/confirmar', '/api/reservas/rejeitar', '/api/reservas/conflito', '/api/reservas/reagendar', '/api/integracoes']
+    const rotasOperador = ['/api/reservas/confirmar', '/api/reservas/rejeitar', '/api/reservas/conflito', '/api/reservas/reagendar', '/api/reservas/kanban', '/api/integracoes']
     if (rotasOperador.some((r) => pathname.startsWith(r))) {
       if (!(['OPERADOR_TI', 'ADMINISTRADOR'] as Perfil[]).includes(perfil)) {
         return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })

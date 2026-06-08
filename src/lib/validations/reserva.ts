@@ -11,34 +11,70 @@ const dataHorarioInputSchema = z.object({
   path: ['dataFim'],
 })
 
+export const professorManualSchema = z.object({
+  nome: z.string().min(3, 'Nome do professor obrigatório').max(100),
+  email: z.string().email('Email inválido'),
+  matricula: z.string().max(20).optional(),
+  telefone: z.string().max(20).optional(),
+  departamento: z.string().max(100).optional(),
+})
+
+export const turmaManualSchema = z.object({
+  codigo: z.string().min(2, 'Código da turma obrigatório').max(30),
+  nome: z.string().min(3, 'Nome da disciplina obrigatório').max(100),
+  semestre: z.string().regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2'),
+  curso: z.string().min(2, 'Curso obrigatório').max(100),
+  numOferta: z.string().max(20).optional(),
+  codigoDisciplina: z.string().min(2, 'Código da disciplina obrigatório').max(30),
+})
+
+const camposReservaBase = {
+  titulo: z.string().min(5, 'Título deve ter ao mínimo 5 caracteres').max(120),
+  modalidadeReserva: z.enum(['PRESENCIAL', 'REMOTO', 'RAS'], { error: 'Selecione a modalidade' }),
+  softwaresUtilizados: z.string().min(2, 'Informe os softwares').max(500),
+  numeroAlunos: z.number({ error: 'Informe o número de alunos' }).int().min(1).max(500),
+}
+
 export const criarReservaFormSchema = z.object({
-  titulo: z
-    .string()
-    .min(5, 'Título deve ter no mínimo 5 caracteres')
-    .max(120, 'Título muito longo'),
-  descricao: z.string().max(1000).optional(),
-  professorId: z.string().cuid('Professor inválido'),
-  turmaId: z.string().cuid('Turma inválida'),
+  ...camposReservaBase,
+  professorId: z.string().optional(),
+  turmaId: z.string().optional(),
+  professorManual: professorManualSchema.optional(),
+  turmaManual: turmaManualSchema.optional(),
   datas: z.array(dataHorarioInputSchema).min(1, 'Informe ao menos uma data'),
+}).superRefine((data, ctx) => {
+  const temProf = !!data.professorId || !!data.professorManual
+  const temTurma = !!data.turmaId || !!data.turmaManual
+  if (!temProf) ctx.addIssue({ code: 'custom', message: 'Informe o professor', path: ['professorId'] })
+  if (!temTurma) ctx.addIssue({ code: 'custom', message: 'Informe a turma', path: ['turmaId'] })
+  if (data.professorId && data.professorManual) {
+    ctx.addIssue({ code: 'custom', message: 'Use cadastro ou dados manuais, não ambos', path: ['professorManual'] })
+  }
+  if (data.turmaId && data.turmaManual) {
+    ctx.addIssue({ code: 'custom', message: 'Use cadastro ou dados manuais, não ambos', path: ['turmaManual'] })
+  }
+})
+
+const dataHorarioApiSchema = z.object({
+  dataInicio: z.string().datetime('Data de início inválida'),
+  dataFim: z.string().datetime('Data de fim inválida'),
+  recorrente: z.boolean().default(false),
 })
 
 export const criarReservaSchema = z.object({
-  titulo: z
-    .string()
-    .min(5, 'Título deve ter no mínimo 5 caracteres')
-    .max(120, 'Título muito longo'),
-  descricao: z.string().max(1000).optional(),
-  professorId: z.string().cuid('Professor inválido'),
-  turmaId: z.string().cuid('Turma inválida'),
-  datas: z
-    .array(
-      z.object({
-        dataInicio: z.string().datetime('Data de início inválida'),
-        dataFim: z.string().datetime('Data de fim inválida'),
-        recorrente: z.boolean().default(false),
-      })
-    )
-    .min(1, 'Informe ao menos uma data'),
+  ...camposReservaBase,
+  professorId: z.string().cuid().optional(),
+  turmaId: z.string().cuid().optional(),
+  professorManual: professorManualSchema.optional(),
+  turmaManual: turmaManualSchema.optional(),
+  datas: z.array(dataHorarioApiSchema).min(1),
+}).superRefine((data, ctx) => {
+  if (!data.professorId && !data.professorManual) {
+    ctx.addIssue({ code: 'custom', message: 'Professor obrigatório', path: ['professorId'] })
+  }
+  if (!data.turmaId && !data.turmaManual) {
+    ctx.addIssue({ code: 'custom', message: 'Turma obrigatória', path: ['turmaId'] })
+  }
 })
 
 export const confirmarReservaSchema = z.object({
@@ -46,17 +82,10 @@ export const confirmarReservaSchema = z.object({
 })
 
 export const rejeitarReservaSchema = z.object({
-  motivoRejeicao: z
-    .string()
-    .min(10, 'Informe o motivo com ao menos 10 caracteres')
-    .max(500),
+  motivoRejeicao: z.string().min(10, 'Informe o motivo com ao menos 10 caracteres').max(500),
 })
 
-const dataHorarioSchema = z.object({
-  dataInicio: z.string().datetime('Data de início inválida'),
-  dataFim: z.string().datetime('Data de fim inválida'),
-  recorrente: z.boolean().default(false),
-})
+const dataHorarioSchema = dataHorarioApiSchema
 
 export const reagendarReservaSchema = z.object({
   reservaId: z.string().cuid('Reserva inválida'),
@@ -73,6 +102,18 @@ export const rejeitarReservaActionSchema = rejeitarReservaSchema.extend({
 
 export const conflitoReservaSchema = z.object({
   reservaId: z.string().cuid('Reserva inválida'),
+  dataHorarioIds: z.array(z.string().cuid()).min(1, 'Selecione ao menos uma data em conflito'),
+})
+
+export const corrigirConflitoSchema = z.object({
+  reservaId: z.string().cuid('Reserva inválida'),
+  correcoes: z.array(
+    z.object({
+      dataHorarioId: z.string().cuid(),
+      dataInicio: z.string().datetime(),
+      dataFim: z.string().datetime(),
+    })
+  ).min(1, 'Informe ao menos uma correção'),
 })
 
 export const uploadAnexoSchema = z.object({
@@ -86,11 +127,7 @@ export const uploadAnexoSchema = z.object({
 export const criarLaboratorioSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
   codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(20),
-  capacidade: z
-    .number({ error: 'Informe a capacidade' })
-    .int()
-    .min(1, 'Capacidade mínima é 1')
-    .max(500, 'Capacidade máxima é 500'),
+  capacidade: z.number({ error: 'Informe a capacidade' }).int().min(1).max(500),
   recursos: z.array(z.string()).default([]),
   localizacao: z.string().max(200).optional(),
 })
@@ -103,6 +140,7 @@ export const criarProfessorSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
   email: z.string().email('Email inválido'),
   matricula: z.string().max(20).optional(),
+  telefone: z.string().max(20).optional(),
   departamento: z.string().max(100).optional(),
 })
 
@@ -112,10 +150,11 @@ export const editarProfessorSchema = criarProfessorSchema.partial()
 
 export const criarTurmaSchema = z.object({
   codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(30),
-  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
-  semestre: z
-    .string()
-    .regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2 (ex: 2025/1)'),
+  nome: z.string().min(3, 'Nome da disciplina obrigatório').max(100),
+  semestre: z.string().regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2 (ex: 2025/1)'),
+  curso: z.string().min(2, 'Curso obrigatório').max(100),
+  numOferta: z.string().max(20).optional(),
+  codigoDisciplina: z.string().min(2, 'Código da disciplina obrigatório').max(30),
   professorId: z.string().cuid('Selecione um professor'),
 })
 
@@ -131,9 +170,7 @@ export const criarUsuarioSchema = z.object({
     .min(8, 'Senha deve ter ao menos 8 caracteres')
     .regex(/[A-Z]/, 'Inclua ao menos uma letra maiúscula')
     .regex(/[0-9]/, 'Inclua ao menos um número'),
-  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'], {
-    error: 'Selecione um perfil',
-  }),
+  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'], { error: 'Selecione um perfil' }),
 })
 
 export const editarUsuarioSchema = z.object({
@@ -144,18 +181,21 @@ export const editarUsuarioSchema = z.object({
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type CriarReservaInput     = z.infer<typeof criarReservaSchema>
+export type CriarReservaInput = z.infer<typeof criarReservaSchema>
 export type ConfirmarReservaInput = z.infer<typeof confirmarReservaSchema>
-export type RejeitarReservaInput  = z.infer<typeof rejeitarReservaSchema>
+export type RejeitarReservaInput = z.infer<typeof rejeitarReservaSchema>
 export type ReagendarReservaInput = z.infer<typeof reagendarReservaSchema>
 export type ConfirmarReservaActionInput = z.infer<typeof confirmarReservaActionSchema>
-export type RejeitarReservaActionInput  = z.infer<typeof rejeitarReservaActionSchema>
-export type ConflitoReservaInput        = z.infer<typeof conflitoReservaSchema>
+export type RejeitarReservaActionInput = z.infer<typeof rejeitarReservaActionSchema>
+export type ConflitoReservaInput = z.infer<typeof conflitoReservaSchema>
+export type CorrigirConflitoInput = z.infer<typeof corrigirConflitoSchema>
+export type ProfessorManualInput = z.infer<typeof professorManualSchema>
+export type TurmaManualInput = z.infer<typeof turmaManualSchema>
 export type CriarLaboratorioInput = z.infer<typeof criarLaboratorioSchema>
-export type EditarLaboratorioInput= z.infer<typeof editarLaboratorioSchema>
-export type CriarProfessorInput   = z.infer<typeof criarProfessorSchema>
-export type EditarProfessorInput  = z.infer<typeof editarProfessorSchema>
-export type CriarTurmaInput       = z.infer<typeof criarTurmaSchema>
-export type EditarTurmaInput      = z.infer<typeof editarTurmaSchema>
-export type CriarUsuarioInput     = z.infer<typeof criarUsuarioSchema>
-export type EditarUsuarioInput    = z.infer<typeof editarUsuarioSchema>
+export type EditarLaboratorioInput = z.infer<typeof editarLaboratorioSchema>
+export type CriarProfessorInput = z.infer<typeof criarProfessorSchema>
+export type EditarProfessorInput = z.infer<typeof editarProfessorSchema>
+export type CriarTurmaInput = z.infer<typeof criarTurmaSchema>
+export type EditarTurmaInput = z.infer<typeof editarTurmaSchema>
+export type CriarUsuarioInput = z.infer<typeof criarUsuarioSchema>
+export type EditarUsuarioInput = z.infer<typeof editarUsuarioSchema>

@@ -54,14 +54,22 @@ async function main() {
   const professor = await prisma.professor.upsert({
     where: { email: 'prof.silva@iec.edu.br' },
     update: {},
-    create: { nome: 'Prof. Carlos Silva', email: 'prof.silva@iec.edu.br', matricula: 'P001', departamento: 'Tecnologia da Informação' },
+    create: { nome: 'Prof. Carlos Silva', email: 'prof.silva@iec.edu.br', matricula: 'P001', telefone: '(11) 98765-4321', departamento: 'Tecnologia da Informação' },
   })
 
   // Turma
   const turma = await prisma.turma.upsert({
     where: { codigo: 'TI-2024-1' },
     update: {},
-    create: { codigo: 'TI-2024-1', nome: 'Tecnologia da Informação — 2024/1', semestre: '2024/1', professorId: professor.id },
+    create: {
+      codigo: 'TI-2024-1',
+      nome: 'Programação Web',
+      semestre: '2024/1',
+      curso: 'Tecnologia da Informação',
+      numOferta: '10001',
+      codigoDisciplina: 'INF201',
+      professorId: professor.id,
+    },
   })
 
   console.log(`✅ Professor: ${professor.nome} | Turma: ${turma.codigo}`)

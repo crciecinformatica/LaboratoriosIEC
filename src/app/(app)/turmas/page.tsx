@@ -36,7 +36,7 @@ export default function TurmasPage() {
   const total = data?.total ?? 0
   const limit = data?.limit ?? 20
   const professores = profData?.professores ?? []
-  const colSpan = 5
+  const colSpan = 7
 
   const atualizar = useUpdateTurma(editing?.id ?? '')
 
@@ -51,7 +51,7 @@ export default function TurmasPage() {
 
   function openCreate() {
     setEditing(null)
-    reset({ codigo: '', nome: '', semestre: '', professorId: '' })
+    reset({ codigo: '', nome: '', semestre: '', curso: '', numOferta: '', codigoDisciplina: '', professorId: '' })
     setModalOpen(true)
   }
 
@@ -73,12 +73,16 @@ export default function TurmasPage() {
   }
 
   async function onSubmit(formData: CriarTurmaInput) {
+    const payload = {
+      ...formData,
+      numOferta: formData.numOferta || undefined,
+    }
     try {
       if (editing) {
-        await atualizar.mutateAsync(formData)
+        await atualizar.mutateAsync(payload)
         toast.success('Turma atualizada com sucesso!')
       } else {
-        await criar.mutateAsync(formData)
+        await criar.mutateAsync(payload)
         toast.success('Turma criada com sucesso!')
       }
       closeModal()
@@ -125,8 +129,10 @@ export default function TurmasPage() {
             <thead>
               <tr>
                 <th>Código</th>
-                <th>Nome</th>
+                <th>Disciplina</th>
+                <th>Curso</th>
                 <th>Semestre</th>
+                <th>Oferta</th>
                 <th>Professor</th>
                 <th className="text-right">Ações</th>
               </tr>
@@ -153,7 +159,9 @@ export default function TurmasPage() {
                     </div>
                   </td>
                   <td className="font-medium text-slate-800">{turma.nome}</td>
+                  <td className="text-slate-600">{turma.curso}</td>
                   <td><span className="badge badge-blue">{turma.semestre}</span></td>
+                  <td className="text-slate-500">{turma.numOferta ?? '—'}</td>
                   <td className="text-slate-600">{turma.professor.nome}</td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -197,9 +205,27 @@ export default function TurmasPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">Nome <span className="text-red-500">*</span></label>
+            <label className="label">Disciplina <span className="text-red-500">*</span></label>
             <input {...register('nome')} className="input" placeholder="Programação Web" />
             {errors.nome && <p className="error-msg">{errors.nome.message}</p>}
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="label">Curso <span className="text-red-500">*</span></label>
+              <input {...register('curso')} className="input" placeholder="Tecnologia da Informação" />
+              {errors.curso && <p className="error-msg">{errors.curso.message}</p>}
+            </div>
+            <div className="form-group">
+              <label className="label">Cód. disciplina <span className="text-red-500">*</span></label>
+              <input {...register('codigoDisciplina')} className="input" placeholder="INF101" />
+              {errors.codigoDisciplina && <p className="error-msg">{errors.codigoDisciplina.message}</p>}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="label">Nº oferta</label>
+            <input {...register('numOferta')} className="input" placeholder="12345" />
           </div>
 
           <div className="form-group">

@@ -58,6 +58,12 @@ export const statusColor: Record<StatusReserva, string> = {
   REJEITADA:              'coral',
 }
 
+export const modalidadeLabel = {
+  PRESENCIAL: 'Presencial',
+  REMOTO: 'Remoto',
+  RAS: 'RAS',
+} as const
+
 export const eventoLabel: Record<TipoEvento, string> = {
   CRIACAO:                  'Solicitação criada',
   ENVIO_CSC:                'Enviado ao CSC',

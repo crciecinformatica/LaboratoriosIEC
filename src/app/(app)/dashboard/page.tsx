@@ -5,6 +5,7 @@ import { statusLabel, statusColor } from '@/types'
 import { StatusReserva } from '@prisma/client'
 import { CalendarDays, FlaskConical, Clock, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import { AgendaSemanal } from '@/components/dashboard/agenda-semanal'
 
 async function getDashboardData(userId: string, perfil: string) {
   const isApoio = perfil === 'APOIO_ACADEMICO'
@@ -76,6 +77,8 @@ export default async function DashboardPage() {
           )
         })}
       </div>
+
+      <AgendaSemanal />
 
       {/* Reservas recentes */}
       <div className="card">

@@ -207,10 +207,53 @@ export function useRejectReserva() {
 export function useMarcarConflitoReserva() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (reservaId: string) =>
-      axios.post('/api/reservas/conflito', { reservaId }).then((r) => r.data),
+    mutationFn: (data: { reservaId: string; dataHorarioIds: string[] }) =>
+      axios.post('/api/reservas/conflito', data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
   })
+}
+
+export function useCorrigirConflito() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: {
+      reservaId: string
+      correcoes: { dataHorarioId: string; dataInicio: string; dataFim: string }[]
+    }) => axios.post('/api/reservas/corrigir-conflito', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
+export function useReagendarReserva() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { reservaId: string; datas: { dataInicio: string; dataFim: string; recorrente?: boolean }[] }) =>
+      axios.post('/api/reservas/reagendar', data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
+export function useKanbanReservas() {
+  return useGet<KanbanData>(['reservas', 'kanban'], '/api/reservas/kanban')
+}
+
+export function useAgendaSemanal(semana = '') {
+  return useGet<AgendaSemanal>(
+    ['agenda'],
+    '/api/dashboard/agenda',
+    semana ? { semana } : undefined
+  )
+}
+
+export function useCalendarioLaboratorios(laboratorioId = '', semana = '') {
+  return useGet<CalendarioLabs>(
+    ['calendario'],
+    '/api/laboratorios/calendario',
+    {
+      ...(laboratorioId ? { laboratorioId } : {}),
+      ...(semana ? { semana } : {}),
+    }
+  )
 }
 
 export function useUploadAnexo(reservaId: string) {
@@ -250,12 +293,13 @@ type Laboratorio = {
 
 type Professor = {
   id: string; nome: string; email: string; matricula: string | null
-  departamento: string | null; ativo: boolean
+  telefone: string | null; departamento: string | null; ativo: boolean
   _count: { turmas: number; reservas: number }
 }
 
 type Turma = {
   id: string; codigo: string; nome: string; semestre: string
+  curso: string; numOferta: string | null; codigoDisciplina: string
   professor: { id: string; nome: string }
 }
 
@@ -272,17 +316,22 @@ type ReservaResumo = {
   professor: { id: string; nome: string }
   turma: { id: string; codigo: string; nome: string }
   laboratorio: { id: string; nome: string; codigo: string } | null
-  datas: { id: string; dataInicio: string; dataFim: string; recorrente: boolean }[]
+  datas: { id: string; dataInicio: string; dataFim: string; recorrente: boolean; emConflito?: boolean }[]
 }
 
 type PaginatedReservas = PaginatedResponse<ReservaResumo, 'reservas'>
 
 type ReservaDetalhe = ReservaResumo & {
-  descricao: string | null
+  modalidadeReserva: string
+  softwaresUtilizados: string
+  numeroAlunos: number
   motivoRejeicao: string | null
   solicitante: { id: string; nome: string; email: string }
-  professor: { id: string; nome: string; email: string }
-  turma: { id: string; codigo: string; nome: string; semestre: string }
+  professor: { id: string; nome: string; email: string; matricula: string | null; telefone: string | null }
+  turma: {
+    id: string; codigo: string; nome: string; semestre: string
+    curso: string; numOferta: string | null; codigoDisciplina: string
+  }
   laboratorio: { id: string; nome: string; codigo: string; capacidade: number } | null
   historico: {
     id: string
@@ -303,4 +352,18 @@ type ReservaDetalhe = ReservaResumo & {
   }[]
 }
 
-export type { Laboratorio, Professor, Turma, UsuarioPublico, ReservaResumo, ReservaDetalhe }
+type KanbanCard = ReservaResumo
+type KanbanData = { colunas: { status: string; reservas: KanbanCard[] }[] }
+type AgendaEvento = {
+  id: string; reservaId: string; dataInicio: string; dataFim: string
+  titulo: string; disciplina: string; status: string
+  laboratorio: { id: string; nome: string; codigo: string } | null
+  professor: string
+}
+type AgendaSemanal = { inicio: string; fim: string; eventos: AgendaEvento[] }
+type CalendarioLabs = AgendaSemanal & {
+  laboratorios: { id: string; nome: string; codigo: string }[]
+  eventos: (AgendaEvento & { turma?: string })[]
+}
+
+export type { Laboratorio, Professor, Turma, UsuarioPublico, ReservaResumo, ReservaDetalhe, KanbanCard }

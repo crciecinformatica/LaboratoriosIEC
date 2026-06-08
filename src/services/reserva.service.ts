@@ -5,23 +5,27 @@ import type {
   CriarReservaInput,
   ConfirmarReservaInput,
   RejeitarReservaInput,
+  CorrigirConflitoInput,
 } from '@/lib/validations/reserva'
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
 export class ReservaService {
-  /**
-   * Cria reserva e avança para AGUARDANDO_CONFIRMACAO.
-   * Registra primeiro evento no histórico de tramitação.
-   */
   static async criar(input: CriarReservaInput, solicitanteId: string) {
     return prisma.$transaction(async (tx) => {
+      const professorId = await this._resolverProfessor(tx, input)
+      const turmaId = await this._resolverTurma(tx, input, professorId)
+
       const reserva = await tx.solicitacaoReserva.create({
         data: {
           titulo: input.titulo,
-          descricao: input.descricao,
+          modalidadeReserva: input.modalidadeReserva,
+          softwaresUtilizados: input.softwaresUtilizados,
+          numeroAlunos: input.numeroAlunos,
           status: 'AGUARDANDO_CONFIRMACAO',
           solicitanteId,
-          professorId: input.professorId,
-          turmaId: input.turmaId,
+          professorId,
+          turmaId,
           datas: {
             create: input.datas.map((d) => ({
               dataInicio: new Date(d.dataInicio),
@@ -52,15 +56,49 @@ export class ReservaService {
     })
   }
 
-  /**
-   * Confirma reserva: AGUARDANDO_CONFIRMACAO → CONFIRMADA.
-   * Vincula laboratório escolhido pelo operador.
-   */
-  static async confirmar(
-    reservaId: string,
-    input: ConfirmarReservaInput,
-    operadorId: string
-  ) {
+  private static async _resolverProfessor(tx: Tx, input: CriarReservaInput): Promise<string> {
+    if (input.professorId) return input.professorId
+
+    if (!input.professorManual) throw new Error('Professor obrigatório')
+
+    const existe = await tx.professor.findUnique({ where: { email: input.professorManual.email } })
+    if (existe) return existe.id
+
+    const professor = await tx.professor.create({
+      data: {
+        nome: input.professorManual.nome,
+        email: input.professorManual.email,
+        matricula: input.professorManual.matricula,
+        telefone: input.professorManual.telefone,
+        departamento: input.professorManual.departamento,
+      },
+    })
+    return professor.id
+  }
+
+  private static async _resolverTurma(tx: Tx, input: CriarReservaInput, professorId: string): Promise<string> {
+    if (input.turmaId) return input.turmaId
+
+    if (!input.turmaManual) throw new Error('Turma obrigatória')
+
+    const existe = await tx.turma.findUnique({ where: { codigo: input.turmaManual.codigo } })
+    if (existe) return existe.id
+
+    const turma = await tx.turma.create({
+      data: {
+        codigo: input.turmaManual.codigo,
+        nome: input.turmaManual.nome,
+        semestre: input.turmaManual.semestre,
+        curso: input.turmaManual.curso,
+        numOferta: input.turmaManual.numOferta,
+        codigoDisciplina: input.turmaManual.codigoDisciplina,
+        professorId,
+      },
+    })
+    return turma.id
+  }
+
+  static async confirmar(reservaId: string, input: ConfirmarReservaInput, operadorId: string) {
     return this._transitar(
       reservaId,
       'CONFIRMADA',
@@ -75,14 +113,7 @@ export class ReservaService {
     )
   }
 
-  /**
-   * Rejeita reserva com motivo obrigatório.
-   */
-  static async rejeitar(
-    reservaId: string,
-    input: RejeitarReservaInput,
-    operadorId: string
-  ) {
+  static async rejeitar(reservaId: string, input: RejeitarReservaInput, operadorId: string) {
     return this._transitar(
       reservaId,
       'REJEITADA',
@@ -98,27 +129,111 @@ export class ReservaService {
     )
   }
 
-  /**
-   * Marca conflito de datas detectado pelo operador ou sistema.
-   */
-  static async marcarConflito(reservaId: string, operadorId: string) {
-    return this._transitar(
-      reservaId,
-      'CONFLITO_DE_DATAS',
-      operadorId,
-      async (tx) => {
-        await tx.solicitacaoReserva.update({
-          where: { id: reservaId },
-          data: { status: 'CONFLITO_DE_DATAS' },
-        })
-      },
-      TipoEvento.CONFLITO_DETECTADO
-    )
+  static async marcarConflito(reservaId: string, dataHorarioIds: string[], operadorId: string) {
+    return prisma.$transaction(async (tx) => {
+      const reserva = await tx.solicitacaoReserva.findUniqueOrThrow({
+        where: { id: reservaId },
+        select: { status: true },
+      })
+
+      if (!transicaoValida(reserva.status, 'CONFLITO_DE_DATAS')) {
+        throw new Error(`Transição inválida: ${reserva.status} → CONFLITO_DE_DATAS`)
+      }
+
+      const datas = await tx.dataHorarioReserva.findMany({
+        where: { reservaId, id: { in: dataHorarioIds } },
+      })
+      if (datas.length !== dataHorarioIds.length) {
+        throw new Error('Uma ou mais datas não pertencem à reserva')
+      }
+
+      await tx.dataHorarioReserva.updateMany({
+        where: { reservaId },
+        data: { emConflito: false },
+      })
+      await tx.dataHorarioReserva.updateMany({
+        where: { id: { in: dataHorarioIds } },
+        data: { emConflito: true },
+      })
+
+      await tx.solicitacaoReserva.update({
+        where: { id: reservaId },
+        data: { status: 'CONFLITO_DE_DATAS' },
+      })
+
+      const descricaoDatas = datas
+        .map((d) => new Date(d.dataInicio).toLocaleString('pt-BR'))
+        .join(', ')
+
+      await tx.historicoTramitacao.create({
+        data: {
+          reservaId,
+          usuarioId: operadorId,
+          evento: TipoEvento.CONFLITO_DETECTADO,
+          statusAntes: reserva.status,
+          statusDepois: 'CONFLITO_DE_DATAS',
+          observacao: `Conflito nas datas: ${descricaoDatas}`,
+          metadados: { dataHorarioIds },
+        },
+      })
+    })
   }
 
-  /**
-   * Reagenda: CONFLITO_DE_DATAS → AGUARDANDO_CONFIRMACAO com novas datas.
-   */
+  static async corrigirConflito(input: CorrigirConflitoInput, solicitanteId: string) {
+    return prisma.$transaction(async (tx) => {
+      const reserva = await tx.solicitacaoReserva.findUniqueOrThrow({
+        where: { id: input.reservaId },
+        select: { status: true, solicitanteId: true },
+      })
+
+      if (reserva.status !== 'CONFLITO_DE_DATAS') {
+        throw new Error('Reserva não está em conflito de datas')
+      }
+
+      for (const correcao of input.correcoes) {
+        const data = await tx.dataHorarioReserva.findFirst({
+          where: {
+            id: correcao.dataHorarioId,
+            reservaId: input.reservaId,
+            emConflito: true,
+          },
+        })
+        if (!data) throw new Error('Data em conflito não encontrada')
+
+        await tx.dataHorarioReserva.update({
+          where: { id: correcao.dataHorarioId },
+          data: {
+            dataInicio: new Date(correcao.dataInicio),
+            dataFim: new Date(correcao.dataFim),
+            emConflito: false,
+          },
+        })
+      }
+
+      const pendentes = await tx.dataHorarioReserva.count({
+        where: { reservaId: input.reservaId, emConflito: true },
+      })
+
+      if (pendentes === 0) {
+        await tx.solicitacaoReserva.update({
+          where: { id: input.reservaId },
+          data: { status: 'AGUARDANDO_CONFIRMACAO' },
+        })
+
+        await tx.historicoTramitacao.create({
+          data: {
+            reservaId: input.reservaId,
+            usuarioId: solicitanteId,
+            evento: TipoEvento.REAGENDAMENTO,
+            statusAntes: 'CONFLITO_DE_DATAS',
+            statusDepois: 'AGUARDANDO_CONFIRMACAO',
+            observacao: 'Datas corrigidas pelo apoio acadêmico',
+          },
+        })
+      }
+    })
+  }
+
   static async reagendar(
     reservaId: string,
     novasDatas: CriarReservaInput['datas'],
@@ -134,7 +249,6 @@ export class ReservaService {
         throw new Error(`Não é possível reagendar no estado ${reserva.status}`)
       }
 
-      // Remove datas antigas e insere novas
       await tx.dataHorarioReserva.deleteMany({ where: { reservaId } })
       await tx.dataHorarioReserva.createMany({
         data: novasDatas.map((d) => ({
@@ -163,10 +277,6 @@ export class ReservaService {
     })
   }
 
-  /**
-   * Verifica se há sobreposição de horário para um laboratório.
-   * Usado antes de confirmar para detectar conflito.
-   */
   static async verificarConflitoDatas(
     laboratorioId: string,
     datas: { dataInicio: Date; dataFim: Date }[],
@@ -190,15 +300,11 @@ export class ReservaService {
     return false
   }
 
-  // ─── Helper interno ────────────────────────────────────────────────────────
-
   private static async _transitar(
     reservaId: string,
     novoStatus: StatusReserva,
     usuarioId: string,
-    updater: (
-      tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
-    ) => Promise<void>,
+    updater: (tx: Tx) => Promise<void>,
     evento: TipoEvento,
     observacao?: string
   ) {
@@ -209,9 +315,7 @@ export class ReservaService {
       })
 
       if (!transicaoValida(reserva.status, novoStatus)) {
-        throw new Error(
-          `Transição inválida: ${reserva.status} → ${novoStatus}`
-        )
+        throw new Error(`Transição inválida: ${reserva.status} → ${novoStatus}`)
       }
 
       await updater(tx)

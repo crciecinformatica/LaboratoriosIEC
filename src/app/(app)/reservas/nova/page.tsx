@@ -29,7 +29,7 @@ export default function NovaReservaPage() {
         </Link>
         <PageHeader
           title="Nova reserva"
-          subtitle="Preencha os dados da solicitação em 3 etapas."
+          subtitle="Preencha os dados da solicitação em 4 etapas."
         />
       </div>
       <ReservaMultistepForm />
