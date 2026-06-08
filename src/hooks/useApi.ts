@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 
+const DEFAULT_LIMIT = 20
+
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
 export function useGet<T>(key: string[], url: string, params?: Record<string, string>) {
@@ -13,13 +15,22 @@ export function useGet<T>(key: string[], url: string, params?: Record<string, st
   })
 }
 
+function buildListParams(search: string, page: number, limit: number, extra?: Record<string, string>) {
+  return {
+    ...(search ? { q: search } : {}),
+    page: String(page),
+    limit: String(limit),
+    ...extra,
+  }
+}
+
 // ─── Laboratórios ─────────────────────────────────────────────────────────────
 
-export function useLaboratorios(search = '') {
-  return useGet<Laboratorio[]>(
+export function useLaboratorios(search = '', page = 1, limit = DEFAULT_LIMIT) {
+  return useGet<PaginatedLaboratorios>(
     ['laboratorios'],
     '/api/laboratorios',
-    search ? { q: search } : undefined
+    buildListParams(search, page, limit)
   )
 }
 
@@ -49,11 +60,11 @@ export function useDeleteLaboratorio() {
 
 // ─── Professores ──────────────────────────────────────────────────────────────
 
-export function useProfessores(search = '') {
-  return useGet<Professor[]>(
+export function useProfessores(search = '', page = 1, limit = DEFAULT_LIMIT) {
+  return useGet<PaginatedProfessores>(
     ['professores'],
     '/api/professores',
-    search ? { q: search } : undefined
+    buildListParams(search, page, limit)
   )
 }
 
@@ -65,13 +76,29 @@ export function useCreateProfessor() {
   })
 }
 
+export function useUpdateProfessor(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: unknown) => axios.patch(`/api/professores/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['professores'] }),
+  })
+}
+
+export function useDeleteProfessor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/professores/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['professores'] }),
+  })
+}
+
 // ─── Turmas ───────────────────────────────────────────────────────────────────
 
-export function useTurmas(search = '', professorId = '') {
-  return useGet<Turma[]>(
+export function useTurmas(search = '', professorId = '', page = 1, limit = DEFAULT_LIMIT) {
+  return useGet<PaginatedTurmas>(
     ['turmas'],
     '/api/turmas',
-    { ...(search ? { q: search } : {}), ...(professorId ? { professorId } : {}) }
+    buildListParams(search, page, limit, professorId ? { professorId } : undefined)
   )
 }
 
@@ -83,13 +110,29 @@ export function useCreateTurma() {
   })
 }
 
+export function useUpdateTurma(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: unknown) => axios.patch(`/api/turmas/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['turmas'] }),
+  })
+}
+
+export function useDeleteTurma() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/turmas/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['turmas'] }),
+  })
+}
+
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 
-export function useUsuarios(search = '') {
-  return useGet<UsuarioPublico[]>(
+export function useUsuarios(search = '', page = 1, limit = DEFAULT_LIMIT) {
+  return useGet<PaginatedUsuarios>(
     ['usuarios'],
     '/api/usuarios',
-    search ? { q: search } : undefined
+    buildListParams(search, page, limit)
   )
 }
 
@@ -101,13 +144,33 @@ export function useCreateUsuario() {
   })
 }
 
+export function useUpdateUsuario(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: unknown) => axios.patch(`/api/usuarios/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
+  })
+}
+
+export function useDeleteUsuario() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/usuarios/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['usuarios'] }),
+  })
+}
+
 // ─── Reservas ─────────────────────────────────────────────────────────────────
 
-export function useReservas(status = '') {
+export function useReservas(status = '', page = 1, limit = DEFAULT_LIMIT) {
   return useGet<ReservaListItem>(
     ['reservas'],
     '/api/reservas',
-    status ? { status } : undefined
+    {
+      ...(status ? { status } : {}),
+      page: String(page),
+      limit: String(limit),
+    }
   )
 }
 
@@ -120,6 +183,17 @@ export function useCreateReserva() {
 }
 
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
+
+type PaginatedResponse<T, K extends string> = {
+  total: number
+  page: number
+  limit: number
+} & Record<K, T[]>
+
+type PaginatedLaboratorios = PaginatedResponse<Laboratorio, 'laboratorios'>
+type PaginatedProfessores = PaginatedResponse<Professor, 'professores'>
+type PaginatedTurmas = PaginatedResponse<Turma, 'turmas'>
+type PaginatedUsuarios = PaginatedResponse<UsuarioPublico, 'usuarios'>
 
 type Laboratorio = {
   id: string; nome: string; codigo: string; capacidade: number
@@ -144,3 +218,5 @@ type UsuarioPublico = {
 type ReservaListItem = {
   reservas: unknown[]; total: number; page: number; limit: number
 }
+
+export type { Laboratorio, Professor, Turma, UsuarioPublico }

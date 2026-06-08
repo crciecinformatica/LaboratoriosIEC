@@ -32,13 +32,42 @@ export const rejeitarReservaSchema = z.object({
     .max(500),
 })
 
+const dataHorarioSchema = z.object({
+  dataInicio: z.string().datetime('Data de início inválida'),
+  dataFim: z.string().datetime('Data de fim inválida'),
+  recorrente: z.boolean().default(false),
+})
+
+export const reagendarReservaSchema = z.object({
+  reservaId: z.string().cuid('Reserva inválida'),
+  datas: z.array(dataHorarioSchema).min(1, 'Informe ao menos uma data'),
+})
+
+export const confirmarReservaActionSchema = confirmarReservaSchema.extend({
+  reservaId: z.string().cuid('Reserva inválida'),
+})
+
+export const rejeitarReservaActionSchema = rejeitarReservaSchema.extend({
+  reservaId: z.string().cuid('Reserva inválida'),
+})
+
+export const conflitoReservaSchema = z.object({
+  reservaId: z.string().cuid('Reserva inválida'),
+})
+
+export const uploadAnexoSchema = z.object({
+  nomeArquivo: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(100),
+  tamanho: z.number().int().positive().max(10 * 1024 * 1024, 'Arquivo máximo 10 MB'),
+})
+
 // ─── Laboratórios ─────────────────────────────────────────────────────────────
 
 export const criarLaboratorioSchema = z.object({
   nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
   codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(20),
   capacidade: z
-    .number({ invalid_type_error: 'Informe a capacidade' })
+    .number({ error: 'Informe a capacidade' })
     .int()
     .min(1, 'Capacidade mínima é 1')
     .max(500, 'Capacidade máxima é 500'),
@@ -83,7 +112,7 @@ export const criarUsuarioSchema = z.object({
     .regex(/[A-Z]/, 'Inclua ao menos uma letra maiúscula')
     .regex(/[0-9]/, 'Inclua ao menos um número'),
   perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'], {
-    errorMap: () => ({ message: 'Selecione um perfil' }),
+    error: 'Selecione um perfil',
   }),
 })
 
@@ -98,6 +127,10 @@ export const editarUsuarioSchema = z.object({
 export type CriarReservaInput     = z.infer<typeof criarReservaSchema>
 export type ConfirmarReservaInput = z.infer<typeof confirmarReservaSchema>
 export type RejeitarReservaInput  = z.infer<typeof rejeitarReservaSchema>
+export type ReagendarReservaInput = z.infer<typeof reagendarReservaSchema>
+export type ConfirmarReservaActionInput = z.infer<typeof confirmarReservaActionSchema>
+export type RejeitarReservaActionInput  = z.infer<typeof rejeitarReservaActionSchema>
+export type ConflitoReservaInput        = z.infer<typeof conflitoReservaSchema>
 export type CriarLaboratorioInput = z.infer<typeof criarLaboratorioSchema>
 export type EditarLaboratorioInput= z.infer<typeof editarLaboratorioSchema>
 export type CriarProfessorInput   = z.infer<typeof criarProfessorSchema>

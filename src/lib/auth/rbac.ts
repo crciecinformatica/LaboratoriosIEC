@@ -14,6 +14,18 @@ export const permissoes = {
     editar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
     deletar:[Perfil.ADMINISTRADOR],
   },
+  professores: {
+    criar:  [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    listar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    editar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    deletar:[Perfil.ADMINISTRADOR],
+  },
+  turmas: {
+    criar:  [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    listar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    editar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    deletar:[Perfil.ADMINISTRADOR],
+  },
   usuarios: {
     criar:  [Perfil.ADMINISTRADOR],
     listar: [Perfil.ADMINISTRADOR],

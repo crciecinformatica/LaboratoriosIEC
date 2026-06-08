@@ -1,44 +1,102 @@
 'use client'
 
 import { useState } from 'react'
-import { useLaboratorios, useCreateLaboratorio, useDeleteLaboratorio } from '@/hooks/useApi'
+import {
+  useLaboratorios,
+  useCreateLaboratorio,
+  useUpdateLaboratorio,
+  useDeleteLaboratorio,
+  type Laboratorio,
+} from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { criarLaboratorioSchema, CriarLaboratorioInput } from '@/lib/validations/reserva'
-import { Plus, Search, Pencil, Trash2, FlaskConical, Loader2 } from 'lucide-react'
+import { criarLaboratorioSchema } from '@/lib/validations/reserva'
+import type { z } from 'zod'
+
+type LaboratorioFormInput = z.input<typeof criarLaboratorioSchema>
+import { Plus, Pencil, Trash2, FlaskConical, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { Modal } from '@/components/ui/Modal'
+import { Modal } from '@/components/ui/modal'
+import { PageHeader } from '@/components/ui/page-header'
+import { SearchInput } from '@/components/ui/search-input'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Pagination } from '@/components/ui/pagination'
 
 export default function LaboratoriosPage() {
   const { data: session } = useSession()
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
-  const { data: labs, isLoading } = useLaboratorios(search)
+  const [editing, setEditing] = useState<Laboratorio | null>(null)
+  const [recursosInput, setRecursosInput] = useState('')
+
+  const { data, isLoading } = useLaboratorios(search, page)
   const criar = useCreateLaboratorio()
   const excluir = useDeleteLaboratorio()
   const toast = useToast()
 
+  const labs = data?.laboratorios ?? []
+  const total = data?.total ?? 0
+  const limit = data?.limit ?? 20
+
   const podeEditar = ['OPERADOR_TI', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
+  const colSpan = podeEditar ? 7 : 6
+
+  const atualizar = useUpdateLaboratorio(editing?.id ?? '')
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<CriarLaboratorioInput>({
+  } = useForm<LaboratorioFormInput>({
     resolver: zodResolver(criarLaboratorioSchema),
     defaultValues: { recursos: [] },
   })
 
-  async function onSubmit(data: CriarLaboratorioInput) {
+  function openCreate() {
+    setEditing(null)
+    setRecursosInput('')
+    reset({ recursos: [] })
+    setModalOpen(true)
+  }
+
+  function openEdit(lab: Laboratorio) {
+    setEditing(lab)
+    setRecursosInput(lab.recursos.join(', '))
+    reset({
+      nome: lab.nome,
+      codigo: lab.codigo,
+      capacidade: lab.capacidade,
+      recursos: lab.recursos,
+      localizacao: lab.localizacao ?? undefined,
+    })
+    setModalOpen(true)
+  }
+
+  function closeModal() {
+    setModalOpen(false)
+    setEditing(null)
+    setRecursosInput('')
+    reset({ recursos: [] })
+  }
+
+  async function onSubmit(formData: LaboratorioFormInput) {
+    const payload = { ...formData, recursos: formData.recursos ?? [] }
     try {
-      await criar.mutateAsync(data)
-      toast.success('Laboratório criado com sucesso!')
-      setModalOpen(false)
-      reset()
+      if (editing) {
+        await atualizar.mutateAsync(payload)
+        toast.success('Laboratório atualizado com sucesso!')
+      } else {
+        await criar.mutateAsync(payload)
+        toast.success('Laboratório criado com sucesso!')
+      }
+      closeModal()
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao criar laboratório'
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? (editing ? 'Erro ao atualizar laboratório' : 'Erro ao criar laboratório')
       toast.error(msg)
     }
   }
@@ -55,32 +113,24 @@ export default function LaboratoriosPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
-      {/* Título */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Laboratórios</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Gerencie os laboratórios disponíveis para reserva.</p>
-        </div>
-        {podeEditar && (
-          <button className="btn-primary btn-sm" onClick={() => setModalOpen(true)}>
-            <Plus className="w-4 h-4" /> Novo laboratório
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Laboratórios"
+        subtitle="Gerencie os laboratórios disponíveis para reserva."
+        action={
+          podeEditar ? (
+            <button className="btn-primary btn-sm" onClick={openCreate}>
+              <Plus className="w-4 h-4" /> Novo laboratório
+            </button>
+          ) : undefined
+        }
+      />
 
-      {/* Busca */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Buscar por nome ou código..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input pl-9"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={(v) => { setSearch(v); setPage(1) }}
+        placeholder="Buscar por nome ou código..."
+      />
 
-      {/* Tabela */}
       <div className="card">
         <div className="table-wrapper">
           <table className="table">
@@ -97,12 +147,16 @@ export default function LaboratoriosPage() {
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={7} className="text-center py-10"><Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" /></td></tr>
+                <tr>
+                  <td colSpan={colSpan} className="text-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
+                  </td>
+                </tr>
               )}
-              {!isLoading && (!labs || labs.length === 0) && (
-                <tr><td colSpan={7} className="text-center py-10 text-slate-400">Nenhum laboratório encontrado.</td></tr>
+              {!isLoading && labs.length === 0 && (
+                <EmptyState message="Nenhum laboratório encontrado." colSpan={colSpan} />
               )}
-              {labs?.map((lab) => (
+              {labs.map((lab) => (
                 <tr key={lab.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -133,7 +187,11 @@ export default function LaboratoriosPage() {
                   {podeEditar && (
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button className="btn-ghost btn-sm p-1.5" title="Editar">
+                        <button
+                          className="btn-ghost btn-sm p-1.5"
+                          title="Editar"
+                          onClick={() => openEdit(lab)}
+                        >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
@@ -151,10 +209,14 @@ export default function LaboratoriosPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
 
-      {/* Modal */}
-      <Modal open={modalOpen} onClose={() => { setModalOpen(false); reset() }} title="Novo laboratório">
+      <Modal
+        open={modalOpen}
+        onClose={closeModal}
+        title={editing ? 'Editar laboratório' : 'Novo laboratório'}
+      >
         <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-4 flex flex-col gap-4">
           <div className="form-row">
             <div className="form-group">
@@ -191,24 +253,26 @@ export default function LaboratoriosPage() {
             <input
               className="input"
               placeholder="Computadores, Projetor, Ar-condicionado"
+              value={recursosInput}
               onChange={(e) => {
+                setRecursosInput(e.target.value)
                 const val = e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
-                // Forçar update via hidden input não é prático; use um estado local se necessário
-                // Por ora, a prop é passada como array vazio e editada manualmente após criação
+                setValue('recursos', val, { shouldValidate: true })
               }}
             />
-            <p className="text-xs text-slate-400 mt-1">
-              Edite os recursos pelo painel de edição após criar o laboratório.
-            </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button type="button" className="btn-secondary btn-sm" onClick={() => { setModalOpen(false); reset() }}>
+            <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
               Cancelar
             </button>
             <button type="submit" className="btn-primary btn-sm" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-              Criar laboratório
+              {isSubmitting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Plus className="w-3.5 h-3.5" />
+              )}
+              {editing ? 'Salvar alterações' : 'Criar laboratório'}
             </button>
           </div>
         </form>

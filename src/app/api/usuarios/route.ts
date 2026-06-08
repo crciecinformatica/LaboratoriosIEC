@@ -3,38 +3,50 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { criarUsuarioSchema } from '@/lib/validations/reserva'
+import { temPermissao } from '@/lib/auth/rbac'
 import bcrypt from 'bcryptjs'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-  if (session.user.perfil !== 'ADMINISTRADOR') {
+
+  if (!temPermissao(session.user.perfil, 'usuarios', 'listar')) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
   const { searchParams } = new URL(req.url)
   const search = searchParams.get('q') ?? ''
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const limit = Math.min(50, parseInt(searchParams.get('limit') ?? '20'))
 
-  const usuarios = await prisma.usuario.findMany({
-    where: search
-      ? {
-          OR: [
-            { nome: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : undefined,
-    select: { id: true, nome: true, email: true, perfil: true, ativo: true, criadoEm: true },
-    orderBy: { nome: 'asc' },
-  })
+  const where = search
+    ? {
+        OR: [
+          { nome: { contains: search, mode: 'insensitive' as const } },
+          { email: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }
+    : undefined
 
-  return NextResponse.json(usuarios)
+  const [total, usuarios] = await Promise.all([
+    prisma.usuario.count({ where }),
+    prisma.usuario.findMany({
+      where,
+      select: { id: true, nome: true, email: true, perfil: true, ativo: true, criadoEm: true },
+      orderBy: { nome: 'asc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ])
+
+  return NextResponse.json({ usuarios, total, page, limit })
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-  if (session.user.perfil !== 'ADMINISTRADOR') {
+
+  if (!temPermissao(session.user.perfil, 'usuarios', 'criar')) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 

@@ -12,21 +12,30 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const search = searchParams.get('q') ?? ''
   const apenasAtivos = searchParams.get('ativos') !== 'false'
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const limit = Math.min(50, parseInt(searchParams.get('limit') ?? '20'))
 
-  const laboratorios = await prisma.laboratorio.findMany({
-    where: {
-      ativo: apenasAtivos ? true : undefined,
-      OR: search
-        ? [
-            { nome: { contains: search, mode: 'insensitive' } },
-            { codigo: { contains: search, mode: 'insensitive' } },
-          ]
-        : undefined,
-    },
-    orderBy: { nome: 'asc' },
-  })
+  const where = {
+    ativo: apenasAtivos ? true : undefined,
+    OR: search
+      ? [
+          { nome: { contains: search, mode: 'insensitive' as const } },
+          { codigo: { contains: search, mode: 'insensitive' as const } },
+        ]
+      : undefined,
+  }
 
-  return NextResponse.json(laboratorios)
+  const [total, laboratorios] = await Promise.all([
+    prisma.laboratorio.count({ where }),
+    prisma.laboratorio.findMany({
+      where,
+      orderBy: { nome: 'asc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ])
+
+  return NextResponse.json({ laboratorios, total, page, limit })
 }
 
 export async function POST(req: NextRequest) {
