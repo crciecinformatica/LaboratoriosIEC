@@ -14,26 +14,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
-  const body = await req.json()
+  const body  = await req.json()
   const parse = criarReservaSchema.safeParse(body)
 
   if (!parse.success) {
-    return NextResponse.json(
-      { error: 'Dados inválidos', detalhes: parse.error.flatten() },
-      { status: 422 }
-    )
+    return NextResponse.json({ error: 'Dados inválidos', detalhes: parse.error.flatten() }, { status: 422 })
   }
 
   try {
     const reserva = await ReservaService.criar(parse.data, session.user.id)
 
-    // Integração em background — não bloqueia a resposta
     IntegracoesService.notificarCriacao(reserva.id, session.user.id)
       .catch((err) => console.error('[Sprint5] Falha notificarCriacao:', err))
 
     return NextResponse.json(reserva, { status: 201 })
   } catch (err) {
-    console.error('[POST /api/reservas]', err)
     const msg = err instanceof Error ? err.message : 'Erro ao criar reserva'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
@@ -64,11 +59,11 @@ export async function GET(req: NextRequest) {
     prisma.solicitacaoReserva.findMany({
       where,
       include: {
-        solicitante:  { select: { id: true, nome: true } },
-        professor:    { select: { id: true, nome: true } },
-        turma:        { select: { id: true, codigo: true, nome: true } },
-        laboratorio:  { select: { id: true, nome: true, codigo: true } },
-        // sem include datas — dia/horaInicio/horaFim são campos diretos agora
+        solicitante: { select: { id: true, nome: true } },
+        professor:   { select: { id: true, nome: true } },
+        turma:       { select: { id: true, codigo: true, nome: true } },
+        laboratorio: { select: { id: true, nome: true, codigo: true } },
+        datas:       { orderBy: { dia: 'asc' } },
       },
       orderBy: { criadoEm: 'desc' },
       skip: (page - 1) * limit,

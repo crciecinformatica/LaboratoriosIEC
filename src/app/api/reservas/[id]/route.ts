@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       professor:   true,
       turma:       true,
       laboratorio: true,
-      // sem datas — dia/horaInicio/horaFim são campos diretos
+      datas:       { orderBy: { dia: 'asc' } },
       historico: {
         include: { usuario: { select: { id: true, nome: true } } },
         orderBy: { criadoEm: 'asc' },
@@ -33,10 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   if (!reserva) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
-  if (
-    session.user.perfil === 'APOIO_ACADEMICO' &&
-    reserva.solicitanteId !== session.user.id
-  ) {
+  if (session.user.perfil === 'APOIO_ACADEMICO' && reserva.solicitanteId !== session.user.id) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 

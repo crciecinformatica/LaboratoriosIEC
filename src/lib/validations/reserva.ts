@@ -12,87 +12,92 @@ function horaParaMin(h: string) {
 // ─── Entidades manuais ────────────────────────────────────────────────────────
 
 export const professorManualSchema = z.object({
-  nome: z.string().min(3, 'Nome do professor obrigatório').max(100),
-  email: z.string().email('Email inválido'),
-  matricula: z.string().max(20).optional(),
-  telefone: z.string().max(20).optional(),
+  nome:         z.string().min(3, 'Nome do professor obrigatório').max(100),
+  email:        z.string().email('Email inválido'),
+  matricula:    z.string().max(20).optional(),
+  telefone:     z.string().max(20).optional(),
   departamento: z.string().max(100).optional(),
 })
 
 export const turmaManualSchema = z.object({
-  codigo: z.string().min(2, 'Código da turma obrigatório').max(30),
-  nome: z.string().min(3, 'Nome da disciplina obrigatório').max(100),
-  semestre: z.string().regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2'),
-  curso: z.string().min(2, 'Curso obrigatório').max(100),
-  numOferta: z.string().max(20).optional(),
+  codigo:           z.string().min(2, 'Código da turma obrigatório').max(30),
+  nome:             z.string().min(3, 'Nome da disciplina obrigatório').max(100),
+  semestre:         z.string().regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2'),
+  curso:            z.string().min(2, 'Curso obrigatório').max(100),
+  numOferta:        z.string().max(20).optional(),
   codigoDisciplina: z.string().min(2, 'Código da disciplina obrigatório').max(30),
 })
 
-// ─── Campos base da reserva ───────────────────────────────────────────────────
+// ─── Schema de item de data (compartilhado) ────────────────────────────────────
 
-const camposReservaBase = {
-  titulo: z.string().min(5, 'Título deve ter ao mínimo 5 caracteres').max(120),
-  modalidadeReserva: z.enum(['PRESENCIAL', 'REMOTO', 'RAS'], {
-    error: 'Selecione a modalidade',
-  }),
-  softwaresUtilizados: z.string().min(2, 'Informe os softwares').max(500),
-  numeroAlunos: z
-    .number({ error: 'Informe o número de alunos' })
-    .int()
-    .min(1)
-    .max(500),
-}
-
-// ─── Schema do FORMULÁRIO (front-end) ─────────────────────────────────────────
-// Usa dia/horaInicio/horaFim na raiz — formulário com campo único de data/hora
-
-export const criarReservaFormSchema = z
+const dataItemFormSchema = z
   .object({
-    ...camposReservaBase,
-    professorId: z.string().optional(),
-    turmaId: z.string().optional(),
-    professorManual: professorManualSchema.optional(),
-    turmaManual: turmaManualSchema.optional(),
-    // Campos de data/hora na raiz (campo único no form, não array)
-    dia: z.string().min(1, 'Selecione a data'),
+    dia:        z.string().min(1, 'Selecione a data'),
     horaInicio: horaSchema,
-    horaFim: horaSchema,
+    horaFim:    horaSchema,
+    recorrente: z.boolean().default(false),
   })
   .refine((d) => horaParaMin(d.horaFim) > horaParaMin(d.horaInicio), {
     message: 'Horário de fim deve ser posterior ao de início',
     path: ['horaFim'],
   })
+
+const dataItemApiSchema = z
+  .object({
+    dia:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato: YYYY-MM-DD'),
+    horaInicio: horaSchema,
+    horaFim:    horaSchema,
+    recorrente: z.boolean().default(false),
+  })
+  .refine((d) => horaParaMin(d.horaFim) > horaParaMin(d.horaInicio), {
+    message: 'Horário de fim deve ser posterior ao de início',
+    path: ['horaFim'],
+  })
+
+// ─── Campos base ──────────────────────────────────────────────────────────────
+
+const camposReservaBase = {
+  titulo:              z.string().min(5, 'Título deve ter ao mínimo 5 caracteres').max(120),
+  modalidadeReserva:   z.enum(['PRESENCIAL', 'REMOTO', 'RAS'], { error: 'Selecione a modalidade' }),
+  softwaresUtilizados: z.string().min(2, 'Informe os softwares').max(500),
+  numeroAlunos:        z.number({ error: 'Informe o número de alunos' }).int().min(1).max(500),
+}
+
+// ─── Schema do FORMULÁRIO (front-end) ─────────────────────────────────────────
+// Usa useFieldArray — array de datas com dia/horaInicio/horaFim
+
+export const criarReservaFormSchema = z
+  .object({
+    ...camposReservaBase,
+    professorId:     z.string().optional(),
+    turmaId:         z.string().optional(),
+    professorManual: professorManualSchema.optional(),
+    turmaManual:     turmaManualSchema.optional(),
+    datas:           z.array(dataItemFormSchema).min(1, 'Informe ao menos uma data'),
+  })
   .superRefine((data, ctx) => {
-    const temProf = !!data.professorId || !!data.professorManual
-    const temTurma = !!data.turmaId || !!data.turmaManual
+    const temProf  = !!data.professorId || !!data.professorManual
+    const temTurma = !!data.turmaId     || !!data.turmaManual
     if (!temProf)
       ctx.addIssue({ code: 'custom', message: 'Informe o professor', path: ['professorId'] })
     if (!temTurma)
       ctx.addIssue({ code: 'custom', message: 'Informe a turma', path: ['turmaId'] })
     if (data.professorId && data.professorManual)
-      ctx.addIssue({ code: 'custom', message: 'Use cadastro ou dados manuais, não ambos', path: ['professorManual'] })
+      ctx.addIssue({ code: 'custom', message: 'Use cadastro ou manual, não ambos', path: ['professorManual'] })
     if (data.turmaId && data.turmaManual)
-      ctx.addIssue({ code: 'custom', message: 'Use cadastro ou dados manuais, não ambos', path: ['turmaManual'] })
+      ctx.addIssue({ code: 'custom', message: 'Use cadastro ou manual, não ambos', path: ['turmaManual'] })
   })
 
 // ─── Schema da API (back-end) ─────────────────────────────────────────────────
-// Recebe dia como string "YYYY-MM-DD", horaInicio/horaFim como "HH:MM"
 
 export const criarReservaSchema = z
   .object({
     ...camposReservaBase,
-    professorId: z.string().cuid().optional(),
-    turmaId: z.string().cuid().optional(),
+    professorId:     z.string().cuid().optional(),
+    turmaId:         z.string().cuid().optional(),
     professorManual: professorManualSchema.optional(),
-    turmaManual: turmaManualSchema.optional(),
-    // dia como string de data ("2025-08-15"), não datetime ISO
-    dia: z.string().min(1, 'Data obrigatória').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato: YYYY-MM-DD'),
-    horaInicio: horaSchema,
-    horaFim: horaSchema,
-  })
-  .refine((d) => horaParaMin(d.horaFim) > horaParaMin(d.horaInicio), {
-    message: 'Horário de fim deve ser posterior ao de início',
-    path: ['horaFim'],
+    turmaManual:     turmaManualSchema.optional(),
+    datas:           z.array(dataItemApiSchema).min(1, 'Informe ao menos uma data'),
   })
   .superRefine((data, ctx) => {
     if (!data.professorId && !data.professorManual)
@@ -108,23 +113,13 @@ export const confirmarReservaSchema = z.object({
 })
 
 export const rejeitarReservaSchema = z.object({
-  motivoRejeicao: z
-    .string()
-    .min(10, 'Informe o motivo com ao menos 10 caracteres')
-    .max(500),
+  motivoRejeicao: z.string().min(10, 'Informe o motivo com ao menos 10 caracteres').max(500),
 })
 
-export const reagendarReservaSchema = z
-  .object({
-    reservaId: z.string().cuid('Reserva inválida'),
-    dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato: YYYY-MM-DD'),
-    horaInicio: horaSchema,
-    horaFim: horaSchema,
-  })
-  .refine((d) => horaParaMin(d.horaFim) > horaParaMin(d.horaInicio), {
-    message: 'Horário de fim deve ser posterior ao de início',
-    path: ['horaFim'],
-  })
+export const reagendarReservaSchema = z.object({
+  reservaId: z.string().cuid('Reserva inválida'),
+  datas:     z.array(dataItemApiSchema).min(1, 'Informe ao menos uma data'),
+})
 
 export const confirmarReservaActionSchema = confirmarReservaSchema.extend({
   reservaId: z.string().cuid('Reserva inválida'),
@@ -140,91 +135,65 @@ export const conflitoReservaSchema = z.object({
 
 export const corrigirConflitoSchema = z.object({
   reservaId: z.string().cuid('Reserva inválida'),
-  dia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato: YYYY-MM-DD'),
-  horaInicio: horaSchema,
-  horaFim: horaSchema,
+  datas:     z.array(dataItemApiSchema).min(1),
 })
 
 export const uploadAnexoSchema = z.object({
   nomeArquivo: z.string().min(1).max(255),
-  mimeType: z.string().min(1).max(100),
-  tamanho: z
-    .number()
-    .int()
-    .positive()
-    .max(10 * 1024 * 1024, 'Arquivo máximo 10 MB'),
+  mimeType:    z.string().min(1).max(100),
+  tamanho:     z.number().int().positive().max(10 * 1024 * 1024, 'Arquivo máximo 10 MB'),
 })
 
 // ─── Laboratórios ─────────────────────────────────────────────────────────────
 
 export const criarLaboratorioSchema = z.object({
-  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
-  codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(20),
-  capacidade: z
-    .number({ error: 'Informe a capacidade' })
-    .int()
-    .min(1)
-    .max(500),
-  recursos: z.array(z.string()).default([]),
-  localizacao: z.string().max(200).optional(),
+  nome:       z.string().min(3).max(100),
+  codigo:     z.string().min(2).max(20),
+  capacidade: z.number({ error: 'Informe a capacidade' }).int().min(1).max(500),
+  recursos:   z.array(z.string()).default([]),
+  localizacao:z.string().max(200).optional(),
 })
-
 export const editarLaboratorioSchema = criarLaboratorioSchema.partial()
 
 // ─── Professores ──────────────────────────────────────────────────────────────
 
 export const criarProfessorSchema = z.object({
-  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
-  email: z.string().email('Email inválido'),
-  matricula: z.string().max(20).optional(),
-  telefone: z.string().max(20).optional(),
-  departamento: z.string().max(100).optional(),
+  nome:        z.string().min(3).max(100),
+  email:       z.string().email('Email inválido'),
+  matricula:   z.string().max(20).optional(),
+  telefone:    z.string().max(20).optional(),
+  departamento:z.string().max(100).optional(),
 })
-
 export const editarProfessorSchema = criarProfessorSchema.partial()
 
 // ─── Turmas ───────────────────────────────────────────────────────────────────
 
 export const criarTurmaSchema = z.object({
-  codigo: z.string().min(2, 'Código deve ter ao menos 2 caracteres').max(30),
-  nome: z.string().min(3, 'Nome da disciplina obrigatório').max(100),
-  semestre: z
-    .string()
-    .regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2 (ex: 2025/1)'),
-  curso: z.string().min(2, 'Curso obrigatório').max(100),
-  numOferta: z.string().max(20).optional(),
-  codigoDisciplina: z
-    .string()
-    .min(2, 'Código da disciplina obrigatório')
-    .max(30),
-  professorId: z.string().cuid('Selecione um professor'),
+  codigo:           z.string().min(2).max(30),
+  nome:             z.string().min(3).max(100),
+  semestre:         z.string().regex(/^\d{4}\/[12]$/, 'Formato: AAAA/1 ou AAAA/2 (ex: 2025/1)'),
+  curso:            z.string().min(2).max(100),
+  numOferta:        z.string().max(20).optional(),
+  codigoDisciplina: z.string().min(2).max(30),
+  professorId:      z.string().cuid('Selecione um professor'),
 })
-
 export const editarTurmaSchema = criarTurmaSchema.partial()
 
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 
 export const criarUsuarioSchema = z.object({
-  nome: z.string().min(3, 'Nome deve ter ao menos 3 caracteres').max(100),
-  email: z.string().email('Email inválido'),
-  senha: z
-    .string()
-    .min(8, 'Senha deve ter ao menos 8 caracteres')
-    .regex(/[A-Z]/, 'Inclua ao menos uma letra maiúscula')
-    .regex(/[0-9]/, 'Inclua ao menos um número'),
-  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'], {
-    error: 'Selecione um perfil',
-  }),
-  codigoPessoa: z.string().max(50).optional(),
+  nome:        z.string().min(3).max(100),
+  email:       z.string().email('Email inválido'),
+  senha:       z.string().min(8).regex(/[A-Z]/, 'Inclua letra maiúscula').regex(/[0-9]/, 'Inclua um número'),
+  perfil:      z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'], { error: 'Selecione um perfil' }),
+  codigoPessoa:z.string().max(50).optional(),
 })
 
 export const editarUsuarioSchema = z.object({
-  nome: z.string().min(3).max(100).optional(),
-  perfil: z
-    .enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR'])
-    .optional(),
-  ativo: z.boolean().optional(),
-  codigoPessoa: z.string().max(50).optional(),
+  nome:        z.string().min(3).max(100).optional(),
+  perfil:      z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR']).optional(),
+  ativo:       z.boolean().optional(),
+  codigoPessoa:z.string().max(50).optional(),
 })
 
 // ─── Types ────────────────────────────────────────────────────────────────────

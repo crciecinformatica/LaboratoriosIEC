@@ -48,7 +48,7 @@ model Usuario {
   nome         String
   email        String   @unique
   senhaHash    String
-  codigoPessoa String?  // código de login PUC — usado como LoginSolicitante no CSC
+  codigoPessoa String?
   perfil       Perfil   @default(APOIO_ACADEMICO)
   ativo        Boolean  @default(true)
   criadoEm    DateTime @default(now())
@@ -121,12 +121,12 @@ model Laboratorio {
   @@map("laboratorios")
 }
 
-// ─── Reservas (núcleo da máquina de estados) ─────────────────────────────────
+// ─── Reservas ─────────────────────────────────────────────────────────────────
 
 model SolicitacaoReserva {
-  id             String        @id @default(cuid())
+  id             String            @id @default(cuid())
   titulo         String
-  status         StatusReserva @default(CRIADA)
+  status         StatusReserva     @default(CRIADA)
   motivoRejeicao String?
   cscProtocolo   String?
   googleEventId  String?
@@ -134,11 +134,6 @@ model SolicitacaoReserva {
   modalidadeReserva   ModalidadeReserva
   softwaresUtilizados String
   numeroAlunos        Int
-
-  // Data e horário da aula
-  dia        DateTime // Data em que a aula ocorre
-  horaInicio String   // Formato: HH:MM
-  horaFim    String   // Formato: HH:MM
 
   solicitanteId String
   professorId   String
@@ -153,13 +148,27 @@ model SolicitacaoReserva {
   turma       Turma               @relation(fields: [turmaId], references: [id])
   laboratorio Laboratorio?        @relation(fields: [laboratorioId], references: [id])
 
+  // Múltiplas datas por reserva
+  datas     DataHorarioReserva[]
   historico HistoricoTramitacao[]
   anexos    Anexo[]
 
   @@map("solicitacoes_reserva")
 }
 
+model DataHorarioReserva {
+  id         String   @id @default(cuid())
+  reservaId  String
+  dia        DateTime // Apenas a data (hora zerada em UTC)
+  horaInicio String   // "HH:MM"
+  horaFim    String   // "HH:MM"
+  recorrente Boolean  @default(false)
+  emConflito Boolean  @default(false)
 
+  reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  @@map("datas_horario_reserva")
+}
 
 // ─── Auditoria ────────────────────────────────────────────────────────────────
 

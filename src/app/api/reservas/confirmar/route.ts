@@ -26,20 +26,17 @@ export async function POST(req: NextRequest) {
   try {
     const { prisma } = await import('@/lib/prisma/client')
 
-    // Verificar conflito usando dia/horaInicio/horaFim (novo modelo)
-    const reserva = await prisma.solicitacaoReserva.findUnique({
-      where:  { id: reservaId },
+    // Busca todas as datas da reserva para verificar conflito
+    const datas = await prisma.dataHorarioReserva.findMany({
+      where:  { reservaId },
       select: { dia: true, horaInicio: true, horaFim: true },
     })
-    if (!reserva) return NextResponse.json({ error: 'Reserva não encontrada' }, { status: 404 })
 
-    const temConflito = await ReservaService.verificarConflitoDatas(
-      laboratorioId,
-      reserva.dia,
-      reserva.horaInicio,
-      reserva.horaFim,
-      reservaId
-    )
+    if (!datas.length) {
+      return NextResponse.json({ error: 'Reserva sem datas cadastradas' }, { status: 422 })
+    }
+
+    const temConflito = await ReservaService.verificarConflitoDatas(laboratorioId, datas, reservaId)
 
     if (temConflito) {
       return NextResponse.json(

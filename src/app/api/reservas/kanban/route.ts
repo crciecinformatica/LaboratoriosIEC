@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
@@ -21,13 +22,13 @@ export async function GET(_req: NextRequest) {
   }
 
   const reservas = await prisma.solicitacaoReserva.findMany({
-    where: { status: { in: COLUNAS } },
+    where:   { status: { in: COLUNAS } },
     include: {
       solicitante: { select: { id: true, nome: true } },
       professor:   { select: { id: true, nome: true } },
       turma:       { select: { id: true, codigo: true, nome: true } },
       laboratorio: { select: { id: true, nome: true, codigo: true } },
-      // sem datas — dia/horaInicio/horaFim diretos na reserva
+      datas:       { orderBy: { dia: 'asc' } },
     },
     orderBy: { criadoEm: 'desc' },
   })

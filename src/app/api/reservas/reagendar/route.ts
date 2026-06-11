@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
-  const body = await req.json()
+  const body  = await req.json()
   const parse = reagendarReservaSchema.safeParse(body)
 
   if (!parse.success) {
