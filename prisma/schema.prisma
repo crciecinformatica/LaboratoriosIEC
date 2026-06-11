@@ -48,7 +48,7 @@ model Usuario {
   nome         String
   email        String   @unique
   senhaHash    String
-  codigoPessoa Int      @unique
+  codigoPessoa String?  // código de login PUC — usado como LoginSolicitante no CSC
   perfil       Perfil   @default(APOIO_ACADEMICO)
   ativo        Boolean  @default(true)
   criadoEm    DateTime @default(now())
@@ -135,6 +135,11 @@ model SolicitacaoReserva {
   softwaresUtilizados String
   numeroAlunos        Int
 
+  // Data e horário da aula
+  dia        DateTime // Data em que a aula ocorre
+  horaInicio String   // Formato: HH:MM
+  horaFim    String   // Formato: HH:MM
+
   solicitanteId String
   professorId   String
   turmaId       String
@@ -148,25 +153,13 @@ model SolicitacaoReserva {
   turma       Turma               @relation(fields: [turmaId], references: [id])
   laboratorio Laboratorio?        @relation(fields: [laboratorioId], references: [id])
 
-  datas     DataHorarioReserva[]
   historico HistoricoTramitacao[]
   anexos    Anexo[]
 
   @@map("solicitacoes_reserva")
 }
 
-model DataHorarioReserva {
-  id         String   @id @default(cuid())
-  reservaId  String
-  dataInicio DateTime
-  dataFim    DateTime
-  recorrente Boolean  @default(false)
-  emConflito Boolean  @default(false)
 
-  reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
-
-  @@map("datas_horario_reserva")
-}
 
 // ─── Auditoria ────────────────────────────────────────────────────────────────
 

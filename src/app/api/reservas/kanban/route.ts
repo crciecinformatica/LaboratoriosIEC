@@ -24,10 +24,10 @@ export async function GET(_req: NextRequest) {
     where: { status: { in: COLUNAS } },
     include: {
       solicitante: { select: { id: true, nome: true } },
-      professor: { select: { id: true, nome: true } },
-      turma: { select: { id: true, codigo: true, nome: true } },
+      professor:   { select: { id: true, nome: true } },
+      turma:       { select: { id: true, codigo: true, nome: true } },
       laboratorio: { select: { id: true, nome: true, codigo: true } },
-      datas: { orderBy: { dataInicio: 'asc' }, take: 1 },
+      // sem datas — dia/horaInicio/horaFim diretos na reserva
     },
     orderBy: { criadoEm: 'desc' },
   })

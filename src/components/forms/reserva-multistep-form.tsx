@@ -2,61 +2,65 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { criarReservaFormSchema } from '@/lib/validations/reserva'
 import type { z } from 'zod'
 import { useProfessores, useTurmas, useCreateReserva } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
-import { ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Upload, FileText } from 'lucide-react'
+import {
+  ChevronLeft, ChevronRight, Loader2,
+  Upload, FileText, Trash2, Plus,
+} from 'lucide-react'
 
 type FormInput = z.input<typeof criarReservaFormSchema>
 
-const STEPS = ['Modalidade e vínculos', 'Dados acadêmicos', 'Datas e horários', 'Anexos']
+const STEPS = ['Modalidade e vínculos', 'Dados acadêmicos e softwares', 'Data e horários']
 
 const MODALIDADES = [
   { value: 'PRESENCIAL', label: 'Presencial' },
-  { value: 'REMOTO', label: 'Remoto' },
-  { value: 'RAS', label: 'RAS' },
+  { value: 'REMOTO',     label: 'Remoto'     },
+  { value: 'RAS',        label: 'RAS'        },
 ] as const
 
-function toISO(datetimeLocal: string) {
-  return new Date(datetimeLocal).toISOString()
-}
-
 export function ReservaMultistepForm() {
-  const router = useRouter()
-  const toast = useToast()
-  const [step, setStep] = useState(0)
-  const [files, setFiles] = useState<File[]>([])
-  const [profManual, setProfManual] = useState(false)
+  const router  = useRouter()
+  const toast   = useToast()
+  const [step, setStep]               = useState(0)
+  const [files, setFiles]             = useState<File[]>([])
+  const [profManual, setProfManual]   = useState(false)
   const [turmaManual, setTurmaManual] = useState(false)
 
   const { data: profData } = useProfessores('', 1, 100)
-  const criar = useCreateReserva()
+  const criar      = useCreateReserva()
   const professores = profData?.professores ?? []
 
   const form = useForm<FormInput>({
     resolver: zodResolver(criarReservaFormSchema),
     defaultValues: {
-      titulo: '',
-      modalidadeReserva: 'PRESENCIAL',
-      professorId: '',
-      turmaId: '',
-      professorManual: undefined,
-      turmaManual: undefined,
+      titulo:              '',
+      modalidadeReserva:   'PRESENCIAL',
+      professorId:         '',
+      turmaId:             '',
+      professorManual:     undefined,
+      turmaManual:         undefined,
       softwaresUtilizados: '',
-      numeroAlunos: undefined,
-      datas: [{ dataInicio: '', dataFim: '', recorrente: false }],
+      numeroAlunos:        undefined,
+      dia:        '',
+      horaInicio: '',
+      horaFim:    '',
     },
   })
 
-  const professorId = profManual ? '' : form.watch('professorId')
+  const { errors } = form.formState
+
+  // Filtrar turmas pelo professor selecionado
+  const professorIdWatch = form.watch('professorId')
+  const professorId = profManual ? '' : (professorIdWatch ?? '')
   const { data: turmaData } = useTurmas('', professorId, 1, 100)
   const turmas = turmaData?.turmas ?? []
 
-  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'datas' })
-  const { errors } = form.formState
+  // ─── Handlers ──────────────────────────────────────────────────────────────
 
   function toggleProfManual(enabled: boolean) {
     setProfManual(enabled)
@@ -92,24 +96,25 @@ export function ReservaMultistepForm() {
   function onTurmaSelect(id: string) {
     form.setValue('turmaId', id)
     const turma = turmas.find((t) => t.id === id)
-    if (turma) {
-      if (!form.getValues('titulo')) {
-        form.setValue('titulo', `Reserva — ${turma.nome}`)
-      }
+    if (turma && !form.getValues('titulo')) {
+      form.setValue('titulo', `Reserva — ${turma.nome}`)
     }
   }
 
-  async function validateStep(current: number) {
+  async function validateStep(current: number): Promise<boolean> {
     if (current === 0) {
-      if (profManual) return form.trigger(['titulo', 'modalidadeReserva', 'professorManual'])
-      return form.trigger(['titulo', 'modalidadeReserva', 'professorId'])
+      const base = ['titulo', 'modalidadeReserva'] as const
+      if (profManual) return form.trigger([...base, 'professorManual'])
+      return form.trigger([...base, 'professorId'])
     }
     if (current === 1) {
-      const base = form.trigger(['softwaresUtilizados', 'numeroAlunos'])
-      if (turmaManual) return Promise.all([base, form.trigger('turmaManual')])
-      return Promise.all([base, form.trigger('turmaId')]).then((r) => r.every(Boolean))
+      const base  = await form.trigger(['softwaresUtilizados', 'numeroAlunos'])
+      const turmaOk = turmaManual
+        ? await form.trigger('turmaManual')
+        : await form.trigger('turmaId')
+      return base && turmaOk
     }
-    if (current === 2) return form.trigger('datas')
+    if (current === 2) return form.trigger(['dia', 'horaInicio', 'horaFim'])
     return true
   }
 
@@ -128,54 +133,81 @@ export function ReservaMultistepForm() {
     if (!ok) return
 
     const data = form.getValues()
+
     const payload = {
-      titulo: data.titulo,
-      modalidadeReserva: data.modalidadeReserva,
+      titulo:              data.titulo,
+      modalidadeReserva:   data.modalidadeReserva,
       softwaresUtilizados: data.softwaresUtilizados,
-      numeroAlunos: data.numeroAlunos,
-      professorId: profManual ? undefined : data.professorId || undefined,
-      turmaId: turmaManual ? undefined : data.turmaId || undefined,
+      numeroAlunos:        data.numeroAlunos!,
+      professorId:  profManual  ? undefined : data.professorId  || undefined,
+      turmaId:      turmaManual ? undefined : data.turmaId      || undefined,
       professorManual: profManual ? {
         ...data.professorManual!,
-        matricula: data.professorManual?.matricula || undefined,
-        telefone: data.professorManual?.telefone || undefined,
+        matricula:    data.professorManual?.matricula    || undefined,
+        telefone:     data.professorManual?.telefone     || undefined,
         departamento: data.professorManual?.departamento || undefined,
       } : undefined,
       turmaManual: turmaManual ? {
         ...data.turmaManual!,
         numOferta: data.turmaManual?.numOferta || undefined,
       } : undefined,
-      datas: (data.datas ?? []).map((d) => ({
-        dataInicio: toISO(d.dataInicio),
-        dataFim: toISO(d.dataFim),
-        recorrente: d.recorrente ?? false,
-      })),
+      // Envia "YYYY-MM-DD", "HH:MM", "HH:MM" — API valida e monta o DateTime
+      dia:        data.dia,
+      horaInicio: data.horaInicio,
+      horaFim:    data.horaFim,
     }
 
     try {
       const reserva = await criar.mutateAsync(payload)
+
+      // Upload de anexos — um a um, com feedback individual de erro
+      let anexoErros = 0
       for (const file of files) {
-        const formData = new FormData()
-        formData.append('file', file)
-        await fetch(`/api/reservas/${reserva.id}/anexos`, { method: 'POST', body: formData })
+        try {
+          const fd = new FormData()
+          fd.append('file', file)
+          const res = await fetch(`/api/reservas/${reserva.id}/anexos`, {
+            method: 'POST',
+            body: fd,
+          })
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}))
+            console.error(`[Anexo] Falha ${file.name}:`, body)
+            anexoErros++
+          }
+        } catch {
+          anexoErros++
+        }
       }
-      toast.success('Solicitação enviada com sucesso!')
+
+      if (anexoErros > 0) {
+        toast.warning(`Reserva criada, mas ${anexoErros} anexo(s) falharam. Faça upload novamente na tela da reserva.`)
+      } else {
+        toast.success('Solicitação enviada com sucesso!')
+      }
+
       router.push(`/reservas/${reserva.id}`)
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-        ?? 'Erro ao criar solicitação'
+      const msg =
+        (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        'Erro ao criar solicitação'
       toast.error(msg)
     }
   }
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
   return (
     <div className="card max-w-2xl">
+      {/* Stepper */}
       <div className="px-6 py-4 border-b border-slate-100 flex gap-1 overflow-x-auto">
         {STEPS.map((label, i) => (
           <div
             key={label}
-            className={`flex-shrink-0 text-center text-xs px-2 py-1.5 rounded-lg font-medium transition ${
-              i === step ? 'bg-blue-50 text-blue-700' : i < step ? 'bg-green-50 text-green-700' : 'bg-slate-50 text-slate-400'
+            className={`shrink-0 text-center text-xs px-2 py-1.5 rounded-lg font-medium transition ${
+              i === step   ? 'bg-blue-50 text-blue-700'
+              : i < step  ? 'bg-green-50 text-green-700'
+              :              'bg-slate-50 text-slate-400'
             }`}
           >
             {i + 1}. {label}
@@ -184,6 +216,8 @@ export function ReservaMultistepForm() {
       </div>
 
       <div className="px-6 py-5 flex flex-col gap-4">
+
+        {/* ── Step 0: Modalidade e vínculos ─────────────────────────────── */}
         {step === 0 && (
           <>
             <div className="form-group">
@@ -196,17 +230,21 @@ export function ReservaMultistepForm() {
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={profManual} onChange={(e) => toggleProfManual(e.target.checked)} className="rounded" />
+              <input type="checkbox" checked={profManual}
+                onChange={(e) => toggleProfManual(e.target.checked)} className="rounded" />
               <span className="text-sm text-slate-600">Professor não cadastrado — inserir manualmente</span>
             </label>
 
             {!profManual ? (
               <div className="form-group">
                 <label className="label">Professor <span className="text-red-500">*</span></label>
-                <select className="input" value={form.watch('professorId')} onChange={(e) => onProfessorSelect(e.target.value)}>
+                <select className="input" value={form.watch('professorId')}
+                  onChange={(e) => onProfessorSelect(e.target.value)}>
                   <option value="">Selecione</option>
                   {professores.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nome} {p.matricula ? `(${p.matricula})` : ''}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.nome}{p.matricula ? ` (${p.matricula})` : ''}
+                    </option>
                   ))}
                 </select>
                 {errors.professorId && <p className="error-msg">{errors.professorId.message}</p>}
@@ -244,27 +282,24 @@ export function ReservaMultistepForm() {
           </>
         )}
 
+        {/* ── Step 1: Dados acadêmicos e softwares ──────────────────────── */}
         {step === 1 && (
           <>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={turmaManual} onChange={(e) => toggleTurmaManual(e.target.checked)} className="rounded" />
+              <input type="checkbox" checked={turmaManual}
+                onChange={(e) => toggleTurmaManual(e.target.checked)} className="rounded" />
               <span className="text-sm text-slate-600">Turma não cadastrada — inserir manualmente</span>
             </label>
 
             {!turmaManual ? (
               <div className="form-group">
                 <label className="label">Turma <span className="text-red-500">*</span></label>
-                <select
-                  className="input"
-                  value={form.watch('turmaId')}
+                <select className="input" value={form.watch('turmaId')}
                   disabled={!profManual && !professorId}
-                  onChange={(e) => onTurmaSelect(e.target.value)}
-                >
+                  onChange={(e) => onTurmaSelect(e.target.value)}>
                   <option value="">Selecione</option>
                   {turmas.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.codigo} — {t.nome} ({t.curso})
-                    </option>
+                    <option key={t.id} value={t.id}>{t.codigo} — {t.nome} ({t.curso})</option>
                   ))}
                 </select>
                 {errors.turmaId && <p className="error-msg">{errors.turmaId.message}</p>}
@@ -310,82 +345,95 @@ export function ReservaMultistepForm() {
 
             <div className="form-group">
               <label className="label">Softwares <span className="text-red-500">*</span></label>
-              <textarea {...form.register('softwaresUtilizados')} className="input min-h-[60px]" />
+              <textarea {...form.register('softwaresUtilizados')}
+                className="input min-h-[60px]" placeholder="Ex: Python 3.10, VS Code, PostgreSQL" />
               {errors.softwaresUtilizados && <p className="error-msg">{errors.softwaresUtilizados.message}</p>}
             </div>
+
             <div className="form-group">
               <label className="label">Número de alunos <span className="text-red-500">*</span></label>
-              <input {...form.register('numeroAlunos', { valueAsNumber: true })} type="number" min={1} max={500} className="input" />
-              <p className="text-xs text-slate-400 mt-1">Anexe a relação de alunos na etapa de anexos.</p>
+              <input {...form.register('numeroAlunos', { valueAsNumber: true })}
+                type="number" min={1} max={500} className="input" />
+              <p className="text-xs text-slate-400 mt-1">Anexe a relação de alunos abaixo, se necessário.</p>
               {errors.numeroAlunos && <p className="error-msg">{errors.numeroAlunos.message}</p>}
+            </div>
+
+            {/* Anexos */}
+            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <p className="label text-sm mb-3">
+                Anexos{' '}
+                <span className="text-xs text-slate-400 font-normal">(planilha de alunos, documentos, etc.)</span>
+              </p>
+              <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-blue-400 transition">
+                <Upload className="w-6 h-6 text-slate-400" />
+                <span className="text-sm text-slate-600">Clique para selecionar arquivos</span>
+                <input type="file" className="hidden" multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
+                  onChange={(e) => {
+                    setFiles((p) => [...p, ...Array.from(e.target.files ?? [])])
+                    e.target.value = ''
+                  }} />
+              </label>
+              {files.length > 0 && (
+                <div className="mt-3 flex flex-col gap-2">
+                  {files.map((f, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-white rounded border border-slate-200">
+                      <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span className="text-sm truncate flex-1 mx-2">{f.name}</span>
+                      <button type="button" className="btn-ghost btn-sm p-1 text-red-500"
+                        onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
 
+        {/* ── Step 2: Data e horários ────────────────────────────────────── */}
         {step === 2 && (
-          <div className="flex flex-col gap-3">
-            {fields.map((field, index) => (
-              <div key={field.id} className="p-4 border border-slate-100 rounded-lg flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-600">Horário {index + 1}</span>
-                  {fields.length > 1 && (
-                    <button type="button" className="btn-ghost btn-sm p-1 text-red-500" onClick={() => remove(index)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label className="label">Início <span className="text-red-500">*</span></label>
-                    <input {...form.register(`datas.${index}.dataInicio`)} type="datetime-local" className="input" />
-                  </div>
-                  <div className="form-group">
-                    <label className="label">Fim <span className="text-red-500">*</span></label>
-                    <input {...form.register(`datas.${index}.dataFim`)} type="datetime-local" className="input" />
-                  </div>
-                </div>
-              </div>
-            ))}
-            <button type="button" className="btn-secondary btn-sm self-start" onClick={() => append({ dataInicio: '', dataFim: '', recorrente: false })}>
-              <Plus className="w-3.5 h-3.5" /> Adicionar horário
-            </button>
-          </div>
-        )}
-
-        {step === 3 && (
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-slate-500">Anexe planilha de alunos e demais documentos.</p>
-            <label className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition">
-              <Upload className="w-8 h-8 text-slate-400" />
-              <span className="text-sm text-slate-600">Selecionar arquivos</span>
-              <input type="file" className="hidden" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" onChange={(e) => {
-                setFiles((p) => [...p, ...Array.from(e.target.files ?? [])])
-                e.target.value = ''
-              }} />
-            </label>
-            {files.map((f, i) => (
-              <div key={i} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg">
-                <FileText className="w-4 h-4 text-slate-400" />
-                <span className="text-sm truncate flex-1 mx-2">{f.name}</span>
-                <button type="button" className="btn-ghost btn-sm p-1 text-red-500" onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+            {/* Dia da aula */}
+            <div className="form-group">
+              <label className="label">Dia da aula <span className="text-red-500">*</span></label>
+              <input {...form.register('dia')} type="date" className="input" />
+              {errors.dia && <p className="error-msg">{errors.dia.message}</p>}
+            </div>
+
+            {/* Hora início + Hora fim */}
+            <div className="form-row">
+              <div className="form-group">
+                <label className="label">Hora início <span className="text-red-500">*</span></label>
+                <input {...form.register('horaInicio')} type="time" className="input" />
+                {errors.horaInicio && <p className="error-msg">{errors.horaInicio.message}</p>}
               </div>
-            ))}
+              <div className="form-group">
+                <label className="label">Hora fim <span className="text-red-500">*</span></label>
+                <input {...form.register('horaFim')} type="time" className="input" />
+                {errors.horaFim && <p className="error-msg">{errors.horaFim.message}</p>}
+              </div>
+            </div>
           </div>
         )}
 
+        {/* ── Navegação ─────────────────────────────────────────────────── */}
         <div className="flex justify-between pt-3 border-t border-slate-100">
           <button type="button" className="btn-secondary btn-sm" onClick={prevStep} disabled={step === 0}>
             <ChevronLeft className="w-4 h-4" /> Voltar
           </button>
+
           {step < STEPS.length - 1 ? (
             <button type="button" className="btn-primary btn-sm" onClick={nextStep}>
               Próximo <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
-            <button type="button" className="btn-primary btn-sm" onClick={handleSubmitFinal} disabled={criar.isPending}>
-              {criar.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            <button type="button" className="btn-primary btn-sm"
+              onClick={handleSubmitFinal} disabled={criar.isPending}>
+              {criar.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Plus className="w-4 h-4" />}
               Enviar solicitação
             </button>
           )}

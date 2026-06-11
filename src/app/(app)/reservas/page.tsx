@@ -11,12 +11,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Pagination } from '@/components/ui/pagination'
 import { Plus, CalendarDays, Loader2 } from 'lucide-react'
 
-const STATUS_FILTERS: { value: string; label: string }[] = [
-  { value: '', label: 'Todas' },
+const STATUS_FILTERS = [
+  { value: '',                       label: 'Todas'      },
   { value: 'AGUARDANDO_CONFIRMACAO', label: 'Aguardando' },
-  { value: 'CONFIRMADA', label: 'Confirmadas' },
-  { value: 'CONFLITO_DE_DATAS', label: 'Conflitos' },
-  { value: 'REJEITADA', label: 'Rejeitadas' },
+  { value: 'CONFIRMADA',             label: 'Confirmadas'},
+  { value: 'CONFLITO_DE_DATAS',      label: 'Conflitos'  },
+  { value: 'REJEITADA',              label: 'Rejeitadas' },
 ]
 
 const colorMap: Record<string, string> = {
@@ -27,13 +27,12 @@ const colorMap: Record<string, string> = {
 export default function ReservasPage() {
   const { data: session } = useSession()
   const [status, setStatus] = useState('')
-  const [page, setPage] = useState(1)
+  const [page,   setPage]   = useState(1)
 
   const { data, isLoading } = useReservas(status, page)
   const reservas = data?.reservas ?? []
-  const total = data?.total ?? 0
-  const limit = data?.limit ?? 20
-  const colSpan = 6
+  const total    = data?.total    ?? 0
+  const limit    = data?.limit    ?? 20
 
   const podeCriar = ['APOIO_ACADEMICO', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
 
@@ -51,7 +50,6 @@ export default function ReservasPage() {
         }
       />
 
-      {/* Filtros por status */}
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => (
           <button
@@ -77,6 +75,7 @@ export default function ReservasPage() {
                 <th>Professor</th>
                 <th>Turma</th>
                 <th>Data</th>
+                <th>Horário</th>
                 <th>Status</th>
                 <th>Laboratório</th>
               </tr>
@@ -84,19 +83,19 @@ export default function ReservasPage() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={colSpan} className="text-center py-10">
+                  <td colSpan={7} className="text-center py-10">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
                   </td>
                 </tr>
               )}
               {!isLoading && reservas.length === 0 && (
-                <EmptyState message="Nenhuma reserva encontrada." colSpan={colSpan} />
+                <EmptyState message="Nenhuma reserva encontrada." colSpan={7} />
               )}
               {reservas.map((r) => (
                 <tr key={r.id}>
                   <td>
                     <Link href={`/reservas/${r.id}`} className="flex items-center gap-2 group">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
                         <CalendarDays className="w-3.5 h-3.5 text-blue-600" />
                       </div>
                       <span className="font-medium text-slate-800 group-hover:text-blue-600 transition">
@@ -105,14 +104,17 @@ export default function ReservasPage() {
                     </Link>
                   </td>
                   <td className="text-slate-600">{r.professor.nome}</td>
-                  <td><code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{r.turma.codigo}</code></td>
+                  <td>
+                    <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">
+                      {r.turma.codigo}
+                    </code>
+                  </td>
+                  {/* dia é Date — formata direto */}
                   <td className="text-slate-500 text-xs">
-                    {r.datas[0]
-                      ? new Date(r.datas[0].dataInicio).toLocaleString('pt-BR', {
-                          day: '2-digit', month: '2-digit', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
-                        })
-                      : '—'}
+                    {new Intl.DateTimeFormat('pt-BR').format(new Date(r.dia))}
+                  </td>
+                  <td className="text-slate-500 text-xs">
+                    {r.horaInicio} — {r.horaFim}
                   </td>
                   <td>
                     <span className={`badge ${colorMap[statusColor[r.status as StatusReserva]] ?? 'badge-gray'}`}>

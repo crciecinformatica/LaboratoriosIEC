@@ -9,7 +9,7 @@ import { AgendaSemanal } from '@/components/dashboard/agenda-semanal'
 
 async function getDashboardData(userId: string, perfil: string) {
   const isApoio = perfil === 'APOIO_ACADEMICO'
-  const where = isApoio ? { solicitanteId: userId } : {}
+  const where   = isApoio ? { solicitanteId: userId } : {}
 
   const [total, confirmadas, aguardando, conflitos, recentes] = await Promise.all([
     prisma.solicitacaoReserva.count({ where }),
@@ -19,10 +19,10 @@ async function getDashboardData(userId: string, perfil: string) {
     prisma.solicitacaoReserva.findMany({
       where,
       include: {
-        professor: { select: { nome: true } },
-        turma: { select: { codigo: true } },
+        professor:   { select: { nome: true } },
+        turma:       { select: { codigo: true } },
         laboratorio: { select: { nome: true } },
-        datas: { take: 1, orderBy: { dataInicio: 'asc' } },
+        // sem datas — dia e horaInicio são campos diretos
       },
       orderBy: { criadoEm: 'desc' },
       take: 5,
@@ -37,6 +37,11 @@ const colorMap: Record<string, string> = {
   red: 'badge-red', blue: 'badge-blue',
 }
 
+// Formata "2025-08-15" + "08:00" → "15/08/2025"
+function formatarDia(dia: Date): string {
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(dia))
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -44,15 +49,14 @@ export default async function DashboardPage() {
   const data = await getDashboardData(session.user.id, session.user.perfil)
 
   const cards = [
-    { label: 'Total de reservas',  value: data.total,       icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50' },
-    { label: 'Confirmadas',        value: data.confirmadas,  icon: CheckCircle2,  color: 'text-green-600',  bg: 'bg-green-50' },
-    { label: 'Aguardando',         value: data.aguardando,   icon: Clock,         color: 'text-amber-600',  bg: 'bg-amber-50' },
-    { label: 'Conflitos',          value: data.conflitos,    icon: FlaskConical,  color: 'text-red-600',    bg: 'bg-red-50' },
+    { label: 'Total de reservas', value: data.total,       icon: CalendarDays, color: 'text-blue-600',  bg: 'bg-blue-50'  },
+    { label: 'Confirmadas',       value: data.confirmadas,  icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Aguardando',        value: data.aguardando,   icon: Clock,        color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Conflitos',         value: data.conflitos,    icon: FlaskConical, color: 'text-red-600',   bg: 'bg-red-50'   },
   ]
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
-      {/* Boas vindas */}
       <div>
         <h1 className="text-xl font-semibold text-slate-900">
           Olá, {session.user.name?.split(' ')[0]} 👋
@@ -95,13 +99,14 @@ export default async function DashboardPage() {
                 <th>Turma</th>
                 <th>Laboratório</th>
                 <th>Data</th>
+                <th>Horário</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {data.recentes.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-slate-400">
+                  <td colSpan={7} className="text-center py-8 text-slate-400">
                     Nenhuma reserva encontrada.
                   </td>
                 </tr>
@@ -109,18 +114,16 @@ export default async function DashboardPage() {
               {data.recentes.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <Link href={`/reservas/${r.id}`} className="font-medium text-slate-800 hover:text-blue-600 transition">
+                    <Link href={`/reservas/${r.id}`}
+                      className="font-medium text-slate-800 hover:text-blue-600 transition">
                       {r.titulo}
                     </Link>
                   </td>
                   <td className="text-slate-600">{r.professor.nome}</td>
                   <td className="text-slate-600">{r.turma.codigo}</td>
                   <td className="text-slate-500">{r.laboratorio?.nome ?? '—'}</td>
-                  <td className="text-slate-500 text-xs">
-                    {r.datas[0]
-                      ? new Date(r.datas[0].dataInicio).toLocaleDateString('pt-BR')
-                      : '—'}
-                  </td>
+                  <td className="text-slate-500 text-xs">{formatarDia(r.dia)}</td>
+                  <td className="text-slate-500 text-xs">{r.horaInicio} — {r.horaFim}</td>
                   <td>
                     <span className={`badge ${colorMap[statusColor[r.status as StatusReserva]] ?? 'badge-gray'}`}>
                       {statusLabel[r.status as StatusReserva]}

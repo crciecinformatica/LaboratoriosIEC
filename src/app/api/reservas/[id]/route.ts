@@ -19,10 +19,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     where: { id },
     include: {
       solicitante: { select: { id: true, nome: true, email: true } },
-      professor: true,
-      turma: true,
+      professor:   true,
+      turma:       true,
       laboratorio: true,
-      datas: { orderBy: { dataInicio: 'asc' } },
+      // sem datas — dia/horaInicio/horaFim são campos diretos
       historico: {
         include: { usuario: { select: { id: true, nome: true } } },
         orderBy: { criadoEm: 'asc' },

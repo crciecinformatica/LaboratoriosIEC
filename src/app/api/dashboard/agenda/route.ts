@@ -9,54 +9,47 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const ref = searchParams.get('semana') ? parseISO(searchParams.get('semana')!) : new Date()
-
+  const ref   = searchParams.get('semana') ? parseISO(searchParams.get('semana')!) : new Date()
   const inicio = startOfWeek(ref, { weekStartsOn: 1 })
-  const fim = endOfWeek(ref, { weekStartsOn: 1 })
+  const fim    = endOfWeek(ref,   { weekStartsOn: 1 })
 
   const where =
     session.user.perfil === 'APOIO_ACADEMICO'
       ? { solicitanteId: session.user.id }
       : {}
 
-  const eventos = await prisma.dataHorarioReserva.findMany({
+  // dia agora é campo Date direto em SolicitacaoReserva
+  const reservas = await prisma.solicitacaoReserva.findMany({
     where: {
-      dataInicio: { gte: inicio, lte: fim },
-      reserva: {
-        ...where,
-        status: { in: ['AGUARDANDO_CONFIRMACAO', 'CONFIRMADA'] },
-      },
+      ...where,
+      status: { in: ['AGUARDANDO_CONFIRMACAO', 'CONFIRMADA'] },
+      dia:    { gte: inicio, lte: fim },
     },
     include: {
-      reserva: {
-        select: {
-          id: true,
-          titulo: true,
-          status: true,
-          turma: { select: { nome: true, codigo: true, curso: true } },
-          laboratorio: { select: { id: true, nome: true, codigo: true } },
-          professor: { select: { nome: true } },
-        },
-      },
+      turma:       { select: { nome: true, codigo: true, curso: true } },
+      laboratorio: { select: { id: true, nome: true, codigo: true } },
+      professor:   { select: { nome: true } },
     },
-    orderBy: { dataInicio: 'asc' },
+    orderBy: [{ dia: 'asc' }, { horaInicio: 'asc' }],
   })
 
   return NextResponse.json({
     inicio: inicio.toISOString(),
-    fim: fim.toISOString(),
-    eventos: eventos.map((e) => ({
-      id: e.id,
-      reservaId: e.reservaId,
-      dataInicio: e.dataInicio,
-      dataFim: e.dataFim,
-      titulo: e.reserva.titulo,
-      disciplina: e.reserva.turma.nome,
-      turma: e.reserva.turma.codigo,
-      curso: e.reserva.turma.curso,
-      status: e.reserva.status,
-      laboratorio: e.reserva.laboratorio,
-      professor: e.reserva.professor.nome,
+    fim:    fim.toISOString(),
+    eventos: reservas.map((r) => ({
+      id:          r.id,
+      reservaId:   r.id,
+      // Monta datetime completo a partir de dia + horaInicio/horaFim para exibição
+      dia:         r.dia,
+      horaInicio:  r.horaInicio,
+      horaFim:     r.horaFim,
+      titulo:      r.titulo,
+      disciplina:  r.turma.nome,
+      turma:       r.turma.codigo,
+      curso:       r.turma.curso,
+      status:      r.status,
+      laboratorio: r.laboratorio,
+      professor:   r.professor.nome,
     })),
   })
 }

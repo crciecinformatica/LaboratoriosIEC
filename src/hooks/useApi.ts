@@ -273,6 +273,36 @@ export function useUploadAnexo(reservaId: string) {
   })
 }
 
+// ─── Integrações ──────────────────────────────────────────────────────────────
+
+export interface LogIntegracao {
+  id: string
+  servico: string
+  endpoint: string
+  metodo: string
+  payload: unknown
+  resposta: unknown
+  statusHttp: number | null
+  erro: string | null
+  criadoEm: string
+}
+
+export function useLogsIntegracao(filtros?: { servico?: string; erro?: boolean; page?: number; limit?: number }) {
+  const params = {
+    ...(filtros?.servico ? { servico: filtros.servico } : {}),
+    ...(filtros?.erro ? { erro: 'true' } : {}),
+    page: String(filtros?.page ?? 1),
+    limit: String(filtros?.limit ?? 20),
+  }
+  return useGet<PaginatedLogs>(
+    ['integracoes', 'logs', filtros],
+    '/api/integracoes/logs',
+    params
+  )
+}
+
+type PaginatedLogs = PaginatedResponse<LogIntegracao, 'logs'>
+
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
 
 type PaginatedResponse<T, K extends string> = {
@@ -304,7 +334,7 @@ type Turma = {
 }
 
 type UsuarioPublico = {
-  id: string; nome: string; email: string; perfil: string; ativo: boolean; criadoEm: string
+  id: string; nome: string; email: string; perfil: string; ativo: boolean; criadoEm: string; codigoPessoa: string;
 }
 
 type ReservaResumo = {

@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const usuario = await prisma.usuario.findUnique({
     where: { id },
-    select: { id: true, nome: true, email: true, perfil: true, ativo: true, criadoEm: true },
+    select: { id: true, nome: true, email: true, perfil: true, ativo: true, codigoPessoa: true, criadoEm: true },
   })
   if (!usuario) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const usuario = await prisma.usuario.update({
     where: { id },
     data: parse.data,
-    select: { id: true, nome: true, email: true, perfil: true, ativo: true, criadoEm: true },
+    select: { id: true, nome: true, email: true, perfil: true, ativo: true, codigoPessoa: true, criadoEm: true },
   })
 
   return NextResponse.json(usuario)

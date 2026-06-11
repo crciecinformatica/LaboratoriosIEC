@@ -14,8 +14,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   criarUsuarioSchema,
   editarUsuarioSchema,
-  CriarUsuarioInput,
-  EditarUsuarioInput,
+  type CriarUsuarioInput,
+  type EditarUsuarioInput,
 } from '@/lib/validations/reserva'
 import { Plus, Pencil, Trash2, Users, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -27,34 +27,41 @@ import { Pagination } from '@/components/ui/pagination'
 
 const PERFIS = [
   { value: 'APOIO_ACADEMICO', label: 'Apoio Acadêmico' },
-  { value: 'OPERADOR_TI', label: 'Operador TI' },
-  { value: 'ADMINISTRADOR', label: 'Administrador' },
+  { value: 'OPERADOR_TI',     label: 'Operador TI'     },
+  { value: 'ADMINISTRADOR',   label: 'Administrador'   },
 ] as const
 
 const perfilLabel: Record<string, string> = {
   APOIO_ACADEMICO: 'Apoio Acadêmico',
-  OPERADOR_TI: 'Operador TI',
-  ADMINISTRADOR: 'Administrador',
+  OPERADOR_TI:     'Operador TI',
+  ADMINISTRADOR:   'Administrador',
+}
+
+const perfilBadge: Record<string, string> = {
+  APOIO_ACADEMICO: 'badge-blue',
+  OPERADOR_TI:     'badge-amber',
+  ADMINISTRADOR:   'badge-red',
 }
 
 export default function UsuariosPage() {
   const { data: session } = useSession()
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page,   setPage]   = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<UsuarioPublico | null>(null)
+  const [editing, setEditing]     = useState<UsuarioPublico | null>(null)
 
   const { data, isLoading } = useUsuarios(search, page)
-  const criar = useCreateUsuario()
+  const criar   = useCreateUsuario()
   const excluir = useDeleteUsuario()
-  const toast = useToast()
+  const toast   = useToast()
 
   const usuarios = data?.usuarios ?? []
-  const total = data?.total ?? 0
-  const limit = data?.limit ?? 20
-  const colSpan = 5
+  const total    = data?.total    ?? 0
+  const limit    = data?.limit    ?? 20
 
   const atualizar = useUpdateUsuario(editing?.id ?? '')
+
+  // ─── Forms ─────────────────────────────────────────────────────────────────
 
   const createForm = useForm<CriarUsuarioInput>({
     resolver: zodResolver(criarUsuarioSchema),
@@ -65,20 +72,21 @@ export default function UsuariosPage() {
     resolver: zodResolver(editarUsuarioSchema),
   })
 
-  const isCreate = !editing
+  // ─── Modal helpers ──────────────────────────────────────────────────────────
 
   function openCreate() {
     setEditing(null)
-    createForm.reset({ nome: '', email: '', senha: '', perfil: 'APOIO_ACADEMICO' })
+    createForm.reset({ nome: '', email: '', senha: '', perfil: 'APOIO_ACADEMICO', codigoPessoa: '' })
     setModalOpen(true)
   }
 
   function openEdit(usuario: UsuarioPublico) {
     setEditing(usuario)
     editForm.reset({
-      nome: usuario.nome,
-      perfil: usuario.perfil as EditarUsuarioInput['perfil'],
-      ativo: usuario.ativo,
+      nome:         usuario.nome,
+      perfil:       usuario.perfil as EditarUsuarioInput['perfil'],
+      ativo:        usuario.ativo,
+      codigoPessoa: usuario.codigoPessoa ?? '',
     })
     setModalOpen(true)
   }
@@ -90,9 +98,14 @@ export default function UsuariosPage() {
     editForm.reset()
   }
 
+  // ─── Submits ────────────────────────────────────────────────────────────────
+
   async function onSubmitCreate(formData: CriarUsuarioInput) {
     try {
-      await criar.mutateAsync(formData)
+      await criar.mutateAsync({
+        ...formData,
+        codigoPessoa: formData.codigoPessoa || undefined,
+      })
       toast.success('Usuário criado com sucesso!')
       closeModal()
     } catch (e: unknown) {
@@ -104,7 +117,10 @@ export default function UsuariosPage() {
 
   async function onSubmitEdit(formData: EditarUsuarioInput) {
     try {
-      await atualizar.mutateAsync(formData)
+      await atualizar.mutateAsync({
+        ...formData,
+        codigoPessoa: formData.codigoPessoa || undefined,
+      })
       toast.success('Usuário atualizado com sucesso!')
       closeModal()
     } catch (e: unknown) {
@@ -125,6 +141,8 @@ export default function UsuariosPage() {
       toast.error(msg)
     }
   }
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -152,6 +170,7 @@ export default function UsuariosPage() {
                 <th>Nome</th>
                 <th>Email</th>
                 <th>Perfil</th>
+                <th>Cód. Pessoa</th>
                 <th>Status</th>
                 <th className="text-right">Ações</th>
               </tr>
@@ -159,26 +178,33 @@ export default function UsuariosPage() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={colSpan} className="text-center py-10">
+                  <td colSpan={6} className="text-center py-10">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
                   </td>
                 </tr>
               )}
               {!isLoading && usuarios.length === 0 && (
-                <EmptyState message="Nenhum usuário encontrado." colSpan={colSpan} />
+                <EmptyState message="Nenhum usuário encontrado." colSpan={6} />
               )}
               {usuarios.map((usuario) => (
                 <tr key={usuario.id}>
                   <td>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
                         <Users className="w-3.5 h-3.5 text-blue-600" />
                       </div>
                       <span className="font-medium text-slate-800">{usuario.nome}</span>
                     </div>
                   </td>
                   <td className="text-slate-600">{usuario.email}</td>
-                  <td><span className="badge badge-blue">{perfilLabel[usuario.perfil] ?? usuario.perfil}</span></td>
+                  <td>
+                    <span className={`badge ${perfilBadge[usuario.perfil] ?? 'badge-blue'}`}>
+                      {perfilLabel[usuario.perfil] ?? usuario.perfil}
+                    </span>
+                  </td>
+                  <td className="text-slate-500 font-mono text-xs">
+                    {usuario.codigoPessoa ?? <span className="text-slate-300">—</span>}
+                  </td>
                   <td>
                     <span className={`badge ${usuario.ativo ? 'badge-green' : 'badge-gray'}`}>
                       {usuario.ativo ? 'Ativo' : 'Inativo'}
@@ -186,7 +212,11 @@ export default function UsuariosPage() {
                   </td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button className="btn-ghost btn-sm p-1.5" title="Editar" onClick={() => openEdit(usuario)}>
+                      <button
+                        className="btn-ghost btn-sm p-1.5"
+                        title="Editar"
+                        onClick={() => openEdit(usuario)}
+                      >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       {usuario.id !== session?.user.id && (
@@ -208,13 +238,18 @@ export default function UsuariosPage() {
         <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
 
+      {/* ── Modal criar/editar ─────────────────────────────────────────── */}
       <Modal
         open={modalOpen}
         onClose={closeModal}
         title={editing ? 'Editar usuário' : 'Novo usuário'}
       >
-        {isCreate ? (
-          <form onSubmit={createForm.handleSubmit(onSubmitCreate)} className="px-6 py-4 flex flex-col gap-4">
+        {!editing ? (
+          /* ── Formulário de CRIAÇÃO ─────────────────────────────────── */
+          <form
+            onSubmit={createForm.handleSubmit(onSubmitCreate)}
+            className="px-6 py-4 flex flex-col gap-4"
+          >
             <div className="form-group">
               <label className="label">Nome <span className="text-red-500">*</span></label>
               <input {...createForm.register('nome')} className="input" placeholder="Maria Santos" />
@@ -225,7 +260,8 @@ export default function UsuariosPage() {
 
             <div className="form-group">
               <label className="label">Email <span className="text-red-500">*</span></label>
-              <input {...createForm.register('email')} type="email" className="input" placeholder="maria@iec.edu.br" />
+              <input {...createForm.register('email')} type="email" className="input"
+                placeholder="maria@iec.edu.br" />
               {createForm.formState.errors.email && (
                 <p className="error-msg">{createForm.formState.errors.email.message}</p>
               )}
@@ -233,7 +269,8 @@ export default function UsuariosPage() {
 
             <div className="form-group">
               <label className="label">Senha <span className="text-red-500">*</span></label>
-              <input {...createForm.register('senha')} type="password" className="input" placeholder="••••••••" />
+              <input {...createForm.register('senha')} type="password" className="input"
+                placeholder="••••••••" />
               {createForm.formState.errors.senha && (
                 <p className="error-msg">{createForm.formState.errors.senha.message}</p>
               )}
@@ -251,22 +288,40 @@ export default function UsuariosPage() {
               )}
             </div>
 
+            <div className="form-group">
+              <label className="label">
+                Código PUC
+                <span className="text-xs text-slate-400 font-normal ml-1">(LoginSolicitante CSC)</span>
+              </label>
+              <input {...createForm.register('codigoPessoa')} className="input"
+                placeholder="ex: 288319" />
+              <p className="text-xs text-slate-400 mt-1">
+                Código de pessoa PUC. Necessário para abrir chamados no CSC automaticamente.
+              </p>
+              {createForm.formState.errors.codigoPessoa && (
+                <p className="error-msg">{createForm.formState.errors.codigoPessoa.message}</p>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
                 Cancelar
               </button>
-              <button type="submit" className="btn-primary btn-sm" disabled={createForm.formState.isSubmitting}>
-                {createForm.formState.isSubmitting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Plus className="w-3.5 h-3.5" />
-                )}
+              <button type="submit" className="btn-primary btn-sm"
+                disabled={createForm.formState.isSubmitting}>
+                {createForm.formState.isSubmitting
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Plus className="w-3.5 h-3.5" />}
                 Criar usuário
               </button>
             </div>
           </form>
         ) : (
-          <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="px-6 py-4 flex flex-col gap-4">
+          /* ── Formulário de EDIÇÃO ──────────────────────────────────── */
+          <form
+            onSubmit={editForm.handleSubmit(onSubmitEdit)}
+            className="px-6 py-4 flex flex-col gap-4"
+          >
             <div className="form-group">
               <label className="label">Nome <span className="text-red-500">*</span></label>
               <input {...editForm.register('nome')} className="input" />
@@ -277,7 +332,7 @@ export default function UsuariosPage() {
 
             <div className="form-group">
               <label className="label">Email</label>
-              <input value={editing?.email ?? ''} className="input" disabled />
+              <input value={editing.email} className="input" disabled />
               <p className="text-xs text-slate-400 mt-1">O email não pode ser alterado.</p>
             </div>
 
@@ -297,16 +352,30 @@ export default function UsuariosPage() {
               </label>
             </div>
 
+            <div className="form-group">
+              <label className="label">
+                Código PUC
+                <span className="text-xs text-slate-400 font-normal ml-1">(LoginSolicitante CSC)</span>
+              </label>
+              <input {...editForm.register('codigoPessoa')} className="input"
+                placeholder="ex: 288319" />
+              <p className="text-xs text-slate-500 mt-1">
+                Código de pessoa PUC usado para abertura automática de chamados no CSC.
+              </p>
+              {editForm.formState.errors.codigoPessoa && (
+                <p className="error-msg">{editForm.formState.errors.codigoPessoa.message}</p>
+              )}
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
                 Cancelar
               </button>
-              <button type="submit" className="btn-primary btn-sm" disabled={editForm.formState.isSubmitting}>
-                {editForm.formState.isSubmitting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Plus className="w-3.5 h-3.5" />
-                )}
+              <button type="submit" className="btn-primary btn-sm"
+                disabled={editForm.formState.isSubmitting}>
+                {editForm.formState.isSubmitting
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Plus className="w-3.5 h-3.5" />}
                 Salvar alterações
               </button>
             </div>

@@ -17,8 +17,8 @@ async function main() {
 
   const operador = await prisma.usuario.upsert({
     where: { email: 'operador.ti@iec.edu.br' },
-    update: {},
-    create: { nome: 'Operador TI', email: 'operador.ti@iec.edu.br', senhaHash, perfil: 'OPERADOR_TI' },
+    update: { codigoPessoa: '288319' },
+    create: { nome: 'Operador TI', email: 'operador.ti@iec.edu.br', senhaHash, perfil: 'OPERADOR_TI', codigoPessoa: '288319' },
   })
 
   const apoio = await prisma.usuario.upsert({

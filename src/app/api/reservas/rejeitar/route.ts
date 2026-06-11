@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { ReservaService } from '@/services/reserva.service'
+import { IntegracoesService } from '@/services/integracao.service'
 import { rejeitarReservaActionSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
 
@@ -24,6 +25,11 @@ export async function POST(req: NextRequest) {
 
   try {
     await ReservaService.rejeitar(reservaId, { motivoRejeicao }, session.user.id)
+
+    // Integração em background
+    IntegracoesService.notificarRejeicao(reservaId, motivoRejeicao)
+      .catch((err) => console.error('[Sprint5] Falha notificarRejeicao:', err))
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao rejeitar reserva'
