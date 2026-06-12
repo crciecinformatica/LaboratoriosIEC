@@ -26,7 +26,8 @@ import { useToast } from '@/components/ui/layout/toast'
 import { Modal } from '@/components/ui/modal'
 import { statusLabel, statusColor, transicaoValida } from '@/types'
 import type { StatusReserva } from '@prisma/client'
-import { Loader2, GripVertical } from 'lucide-react'
+import { Loader2, GripVertical, Plus, Trash2 } from 'lucide-react'
+
 const COLUNAS: StatusReserva[] = [
   'AGUARDANDO_CONFIRMACAO',
   'CONFIRMADA',
@@ -38,6 +39,65 @@ const colorMap: Record<string, string> = {
   gray: 'border-slate-200', amber: 'border-amber-200', green: 'border-green-200',
   red: 'border-red-200', coral: 'border-orange-200',
 }
+
+function formatarDia(iso: string | Date): string {
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
+}
+
+/** Resumo legível do array `datas` para exibir no card (substitui card.datas[0].dataInicio) */
+function resumoDatas(datas: KanbanCard['datas']): string {
+  if (datas.length === 0) return '—'
+  if (datas.length === 1) return `${formatarDia(datas[0].dia)}, ${datas[0].horaInicio}–${datas[0].horaFim}`
+  return `${formatarDia(datas[0].dia)} +${datas.length - 1} data${datas.length - 1 > 1 ? 's' : ''}`
+}
+
+// ─── Editor de múltiplas datas (dia / horaInicio / horaFim) ───────────────────
+
+type DataForm = { dia: string; horaInicio: string; horaFim: string }
+
+function EditorDatas({ value, onChange }: { value: DataForm[]; onChange: (d: DataForm[]) => void }) {
+  function add() { onChange([...value, { dia: '', horaInicio: '', horaFim: '' }]) }
+  function remove(i: number) { onChange(value.filter((_, idx) => idx !== i)) }
+  function update(i: number, field: keyof DataForm, val: string) {
+    onChange(value.map((d, idx) => (idx === i ? { ...d, [field]: val } : d)))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {value.map((d, i) => (
+        <div key={i} className="flex items-end gap-2 flex-wrap">
+          <div className="form-group flex-1 min-w-[130px]">
+            {i === 0 && <label className="label">Data</label>}
+            <input type="date" className="input" value={d.dia}
+              onChange={(e) => update(i, 'dia', e.target.value)} />
+          </div>
+          <div className="form-group">
+            {i === 0 && <label className="label">Início</label>}
+            <input type="time" className="input" value={d.horaInicio}
+              onChange={(e) => update(i, 'horaInicio', e.target.value)} />
+          </div>
+          <div className="form-group">
+            {i === 0 && <label className="label">Fim</label>}
+            <input type="time" className="input" value={d.horaFim}
+              onChange={(e) => update(i, 'horaFim', e.target.value)} />
+          </div>
+          {value.length > 1 && (
+            <button type="button"
+              className="btn-ghost btn-sm p-1.5 text-red-400 hover:text-red-600 self-end mb-0.5"
+              onClick={() => remove(i)}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
+      <button type="button" className="btn-secondary btn-sm self-start" onClick={add}>
+        <Plus className="w-3.5 h-3.5" /> Adicionar data
+      </button>
+    </div>
+  )
+}
+
+// ─── Card ──────────────────────────────────────────────────────────────────
 
 function KanbanCardItem({ card }: { card: KanbanCard }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id, data: { card } })
@@ -56,11 +116,10 @@ function KanbanCardItem({ card }: { card: KanbanCard }) {
           </Link>
           <p className="text-xs text-slate-500 mt-1">{card.professor.nome}</p>
           <p className="text-xs text-slate-400">{card.turma.codigo}</p>
-          {card.datas[0] && (
-            <p className="text-[10px] text-slate-400 mt-1">
-              {new Date(card.datas[0].dataInicio).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-            </p>
-          )}
+          {/* Usa o array card.datas — nunca card.datas[0].dataInicio (campo removido) */}
+          <p className="text-[10px] text-slate-400 mt-1">
+            {resumoDatas(card.datas)}
+          </p>
         </div>
       </div>
     </div>
@@ -100,9 +159,10 @@ export function ReservasKanban() {
   const [pending, setPending] = useState<{ cardId: string; targetStatus: StatusReserva } | null>(null)
   const [labId, setLabId] = useState('')
   const [motivo, setMotivo] = useState('')
-  const [reagendarInicio, setReagendarInicio] = useState('')
-  const [reagendarFim, setReagendarFim] = useState('')
-  const [datasConflito, setDatasConflito] = useState<string[]>([])
+  // Array de datas no formato novo (dia / horaInicio / horaFim) para reagendamento
+  const [reagendarDatas, setReagendarDatas] = useState<DataForm[]>([
+    { dia: '', horaInicio: '', horaFim: '' },
+  ])
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   const laboratorios = labData?.laboratorios ?? []
@@ -132,22 +192,16 @@ export function ReservasKanban() {
 
     if (targetStatus === 'CONFIRMADA') setModal('confirmar')
     else if (targetStatus === 'REJEITADA') setModal('rejeitar')
-    else if (targetStatus === 'CONFLITO_DE_DATAS') {
-      const cardDatas = card.datas
-      setDatasConflito(cardDatas.length === 1 ? [cardDatas[0].id] : [])
-      setModal('conflito')
-    }
+    // Não há mais seleção individual de datas em conflito — a rota marca
+    // automaticamente todas as DataHorarioReserva da solicitação.
+    else if (targetStatus === 'CONFLITO_DE_DATAS') setModal('conflito')
     else if (targetStatus === 'AGUARDANDO_CONFIRMACAO') setModal('reagendar')
   }
 
   async function submitConflito() {
     if (!pending) return
-    if (datasConflito.length === 0) {
-      toast.error('Selecione ao menos uma data em conflito.')
-      return
-    }
     try {
-      await conflito.mutateAsync({ reservaId: pending.cardId, dataHorarioIds: datasConflito })
+      await conflito.mutateAsync({ reservaId: pending.cardId })
       toast.success('Conflito registrado.')
       closeModal()
       refetch()
@@ -181,15 +235,16 @@ export function ReservasKanban() {
   }
 
   async function submitReagendar() {
-    if (!pending || !reagendarInicio || !reagendarFim) { toast.error('Informe as novas datas.'); return }
+    if (!pending) return
+    const invalidas = reagendarDatas.filter((d) => !d.dia || !d.horaInicio || !d.horaFim)
+    if (invalidas.length > 0) {
+      toast.error('Preencha todos os campos de data e horário.')
+      return
+    }
     try {
       await reagendar.mutateAsync({
         reservaId: pending.cardId,
-        datas: [{
-          dataInicio: new Date(reagendarInicio).toISOString(),
-          dataFim: new Date(reagendarFim).toISOString(),
-          recorrente: false,
-        }],
+        datas: reagendarDatas,
       })
       toast.success('Reagendamento realizado!')
       closeModal()
@@ -204,9 +259,7 @@ export function ReservasKanban() {
     setPending(null)
     setLabId('')
     setMotivo('')
-    setReagendarInicio('')
-    setReagendarFim('')
-    setDatasConflito([])
+    setReagendarDatas([{ dia: '', horaInicio: '', horaFim: '' }])
   }
 
   const pendingCard = pending ? findCard(pending.cardId) : undefined
@@ -260,26 +313,18 @@ export function ReservasKanban() {
         </div>
       </Modal>
 
-      <Modal open={modal === 'conflito'} onClose={closeModal} title="Selecionar datas em conflito" size="sm">
+      {/* Marcar conflito — agora afeta todas as datas da reserva, sem seleção individual */}
+      <Modal open={modal === 'conflito'} onClose={closeModal} title="Marcar conflito de datas" size="sm">
         <div className="px-6 py-4 flex flex-col gap-3">
-          <p className="text-sm text-slate-600">Marque quais horários possuem conflito de agenda.</p>
-          {pendingCard?.datas.map((d) => (
-            <label key={d.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-1 rounded"
-                checked={datasConflito.includes(d.id)}
-                onChange={(e) => {
-                  setDatasConflito((prev) =>
-                    e.target.checked ? [...prev, d.id] : prev.filter((x) => x !== d.id)
-                  )
-                }}
-              />
-              <span className="text-sm text-slate-700">
-                {new Date(d.dataInicio).toLocaleString('pt-BR')} — {new Date(d.dataFim).toLocaleString('pt-BR')}
-              </span>
-            </label>
-          ))}
+          <p className="text-sm text-slate-600">Confirma que há conflito nas datas desta reserva?</p>
+          <div className="flex flex-col gap-1">
+            {pendingCard?.datas.map((d) => (
+              <p key={d.id} className="text-xs px-2 py-1 bg-slate-50 rounded text-slate-600">
+                {formatarDia(d.dia)}, {d.horaInicio} — {d.horaFim}
+              </p>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400">O solicitante será notificado e poderá propor novas datas.</p>
           <div className="flex justify-end gap-2">
             <button className="btn-secondary btn-sm" onClick={closeModal}>Cancelar</button>
             <button className="btn-primary btn-sm" onClick={submitConflito} disabled={conflito.isPending}>Confirmar conflito</button>
@@ -287,16 +332,10 @@ export function ReservasKanban() {
         </div>
       </Modal>
 
-      <Modal open={modal === 'reagendar'} onClose={closeModal} title="Reagendar após conflito" size="sm">
-        <div className="px-6 py-4 flex flex-col gap-3">
-          <div className="form-group">
-            <label className="label">Nova data início</label>
-            <input type="datetime-local" className="input" value={reagendarInicio} onChange={(e) => setReagendarInicio(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="label">Nova data fim</label>
-            <input type="datetime-local" className="input" value={reagendarFim} onChange={(e) => setReagendarFim(e.target.value)} />
-          </div>
+      {/* Reagendar — agora suporta múltiplas datas (dia + horaInicio + horaFim) */}
+      <Modal open={modal === 'reagendar'} onClose={closeModal} title="Reagendar após conflito" size="md">
+        <div className="px-6 py-4 flex flex-col gap-4">
+          <EditorDatas value={reagendarDatas} onChange={setReagendarDatas} />
           <div className="flex justify-end gap-2">
             <button className="btn-secondary btn-sm" onClick={closeModal}>Cancelar</button>
             <button className="btn-primary btn-sm" onClick={submitReagendar} disabled={reagendar.isPending}>Reagendar</button>

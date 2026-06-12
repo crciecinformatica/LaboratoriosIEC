@@ -141,7 +141,7 @@ function KanbanColumn({ status, cards }: { status: StatusReserva; cards: KanbanC
 
 // ─── Board principal ──────────────────────────────────────────────────────────
 
-export function ReservasKanban() {
+function ReservasKanban() {
   const { data, isLoading, refetch } = useKanbanReservas()
   const { data: labData }            = useLaboratorios('', 1, 100)
   const confirmar = useConfirmReserva()
@@ -320,5 +320,17 @@ export function ReservasKanban() {
         </div>
       </Modal>
     </>
+  )
+}
+
+export default function KanbanPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-xl font-semibold text-slate-900">Kanban de reservas</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Arraste os cartões para alterar o status da reserva.</p>
+      </div>
+      <ReservasKanban />
+    </div>
   )
 }
