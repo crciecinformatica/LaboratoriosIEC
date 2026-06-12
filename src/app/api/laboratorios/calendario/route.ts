@@ -13,11 +13,12 @@ export async function GET(req: NextRequest) {
   const ref = searchParams.get('semana') ? parseISO(searchParams.get('semana')!) : new Date()
 
   const inicio = startOfWeek(ref, { weekStartsOn: 1 })
-  const fim = endOfWeek(ref, { weekStartsOn: 1 })
+  const fim    = endOfWeek(ref,   { weekStartsOn: 1 })
 
-  const eventos = await prisma.dataHorarioReserva.findMany({
+  // Busca pelo campo dia (Date) que substituiu dataInicio/dataFim
+  const datasReserva = await prisma.dataHorarioReserva.findMany({
     where: {
-      dataInicio: { gte: inicio, lte: fim },
+      dia: { gte: inicio, lte: fim },
       reserva: {
         status: { in: ['AGUARDANDO_CONFIRMACAO', 'CONFIRMADA'] },
         ...(laboratorioId ? { laboratorioId } : {}),
@@ -26,42 +27,44 @@ export async function GET(req: NextRequest) {
     include: {
       reserva: {
         select: {
-          id: true,
+          id:    true,
           titulo: true,
           status: true,
-          turma: { select: { codigo: true, nome: true, curso: true } },
+          turma:       { select: { codigo: true, nome: true, curso: true } },
           laboratorio: { select: { id: true, nome: true, codigo: true } },
-          professor: { select: { nome: true } },
+          professor:   { select: { nome: true } },
         },
       },
     },
-    orderBy: { dataInicio: 'asc' },
+    orderBy: { dia: 'asc' },
   })
 
   const laboratorios = laboratorioId
     ? []
     : await prisma.laboratorio.findMany({
-        where: { ativo: true },
-        select: { id: true, nome: true, codigo: true },
+        where:   { ativo: true },
+        select:  { id: true, nome: true, codigo: true },
         orderBy: { nome: 'asc' },
       })
 
   return NextResponse.json({
     inicio: inicio.toISOString(),
-    fim: fim.toISOString(),
+    fim:    fim.toISOString(),
     laboratorios,
-    eventos: eventos.map((e) => ({
-      id: e.id,
-      reservaId: e.reservaId,
-      dataInicio: e.dataInicio,
-      dataFim: e.dataFim,
-      titulo: e.reserva.titulo,
-      disciplina: e.reserva.turma.nome,
-      status: e.reserva.status,
-      laboratorio: e.reserva.laboratorio,
-      professor: e.reserva.professor.nome,
-      turma: e.reserva.turma.codigo,
-      curso: e.reserva.turma.curso,
+    eventos: datasReserva.map((d) => ({
+      id:          d.id,
+      reservaId:   d.reservaId,
+      // Mantém dia + horaInicio + horaFim no lugar de dataInicio/dataFim
+      dia:         d.dia,
+      horaInicio:  d.horaInicio,
+      horaFim:     d.horaFim,
+      titulo:      d.reserva.titulo,
+      disciplina:  d.reserva.turma.nome,
+      turma:       d.reserva.turma.codigo,
+      curso:       d.reserva.turma.curso,
+      status:      d.reserva.status,
+      laboratorio: d.reserva.laboratorio,
+      professor:   d.reserva.professor.nome,
     })),
   })
 }

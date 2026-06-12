@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { criarReservaFormSchema } from '@/lib/validations/reserva'
 import type { z } from 'zod'
@@ -46,10 +46,24 @@ export function ReservaMultistepForm() {
       turmaManual:         undefined,
       softwaresUtilizados: '',
       numeroAlunos:        undefined,
-      dia:        '',
-      horaInicio: '',
-      horaFim:    '',
+      datas: [
+        {
+          dia: '',
+          horaInicio: '',
+          horaFim: '',
+          recorrente: false,
+        },
+      ],
     },
+  })
+
+  const {
+    fields: datasFields,
+    append: appendData,
+    remove: removeData,
+  } = useFieldArray({
+    control: form.control,
+    name: 'datas',
   })
 
   const { errors } = form.formState
@@ -114,7 +128,9 @@ export function ReservaMultistepForm() {
         : await form.trigger('turmaId')
       return base && turmaOk
     }
-    if (current === 2) return form.trigger(['dia', 'horaInicio', 'horaFim'])
+    if (current === 2) {
+      return form.trigger('datas')
+    }
     return true
   }
 
@@ -152,9 +168,7 @@ export function ReservaMultistepForm() {
         numOferta: data.turmaManual?.numOferta || undefined,
       } : undefined,
       // Envia "YYYY-MM-DD", "HH:MM", "HH:MM" — API valida e monta o DateTime
-      dia:        data.dia,
-      horaInicio: data.horaInicio,
-      horaFim:    data.horaFim,
+      datas: data.datas,
     }
 
     try {
@@ -395,26 +409,94 @@ export function ReservaMultistepForm() {
         {/* ── Step 2: Data e horários ────────────────────────────────────── */}
         {step === 2 && (
           <div className="flex flex-col gap-4">
-            {/* Dia da aula */}
-            <div className="form-group">
-              <label className="label">Dia da aula <span className="text-red-500">*</span></label>
-              <input {...form.register('dia')} type="date" className="input" />
-              {errors.dia && <p className="error-msg">{errors.dia.message}</p>}
-            </div>
 
-            {/* Hora início + Hora fim */}
-            <div className="form-row">
-              <div className="form-group">
-                <label className="label">Hora início <span className="text-red-500">*</span></label>
-                <input {...form.register('horaInicio')} type="time" className="input" />
-                {errors.horaInicio && <p className="error-msg">{errors.horaInicio.message}</p>}
+            {datasFields.map((field, index) => (
+              <div
+                key={field.id}
+                className="rounded-lg border border-slate-200 p-4 flex flex-col gap-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium">
+                    Data #{index + 1}
+                  </h3>
+
+                  {datasFields.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn-ghost text-red-500"
+                      onClick={() => removeData(index)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label className="label">
+                    Dia <span className="text-red-500">*</span>
+                  </label>
+
+                  <input
+                    type="date"
+                    className="input"
+                    {...form.register(`datas.${index}.dia`)}
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="label">
+                      Hora início
+                    </label>
+
+                    <input
+                      type="time"
+                      className="input"
+                      {...form.register(`datas.${index}.horaInicio`)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="label">
+                      Hora fim
+                    </label>
+
+                    <input
+                      type="time"
+                      className="input"
+                      {...form.register(`datas.${index}.horaFim`)}
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    {...form.register(`datas.${index}.recorrente`)}
+                  />
+
+                  <span className="text-sm">
+                    Aula recorrente
+                  </span>
+                </label>
               </div>
-              <div className="form-group">
-                <label className="label">Hora fim <span className="text-red-500">*</span></label>
-                <input {...form.register('horaFim')} type="time" className="input" />
-                {errors.horaFim && <p className="error-msg">{errors.horaFim.message}</p>}
-              </div>
-            </div>
+            ))}
+
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() =>
+                appendData({
+                  dia: '',
+                  horaInicio: '',
+                  horaFim: '',
+                  recorrente: false,
+                })
+              }
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar data
+            </button>
           </div>
         )}
 

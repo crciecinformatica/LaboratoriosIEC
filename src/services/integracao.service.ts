@@ -43,7 +43,7 @@ export class IntegracoesService {
       include: {
         solicitante: { select: { id: true, nome: true, email: true } },
         professor:   { select: { id: true, nome: true, email: true, telefone: true, departamento: true } },
-        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true } },
+        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true, numOferta: true } },
         datas:       { orderBy: { dia: 'asc' } },
       },
     })
@@ -101,7 +101,7 @@ export class IntegracoesService {
       include: {
         solicitante: { select: { id: true, nome: true, email: true } },
         professor:   { select: { id: true, nome: true, email: true, telefone: true, departamento: true } },
-        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true } },
+        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true, numOferta: true } },
         laboratorio: { select: { id: true, nome: true } },
         datas:       { orderBy: { dia: 'asc' } },
       },
@@ -121,7 +121,7 @@ export class IntegracoesService {
       include: {
         solicitante: { select: { id: true, nome: true, email: true } },
         professor:   { select: { id: true, nome: true, email: true, telefone: true, departamento: true } },
-        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true } },
+        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true, numOferta: true } },
         datas:       { orderBy: { dia: 'asc' } },
       },
     })
@@ -217,7 +217,7 @@ export class IntegracoesService {
       codigoDisciplina: reserva.turma.codigoDisciplina,
       semestre: reserva.turma.semestre,
       turma: reserva.turma.codigo,
-      numOferta: reserva.turma.numOferta ?? undefined,
+      numOferta: reserva.turma.numOferta,
       ...(extras.cscProtocolo   && { cscProtocolo:   extras.cscProtocolo }),
       ...(extras.laboratorio    && { laboratorio:    extras.laboratorio }),
       ...(extras.motivoRejeicao && { motivoRejeicao: extras.motivoRejeicao }),

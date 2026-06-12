@@ -50,13 +50,15 @@ export function AgendaSemanal() {
                 className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition"
               >
                 <div className="text-center min-w-[48px]">
-                  <p className="text-xs font-bold text-slate-700">{format(new Date(ev.dataInicio), 'dd')}</p>
-                  <p className="text-[10px] text-slate-400">{format(new Date(ev.dataInicio), 'MMM', { locale: ptBR })}</p>
+                  {/* ev.dia substitui ev.dataInicio */}
+                  <p className="text-xs font-bold text-slate-700">{format(new Date(ev.dia), 'dd')}</p>
+                  <p className="text-[10px] text-slate-400">{format(new Date(ev.dia), 'MMM', { locale: ptBR })}</p>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 truncate">{ev.disciplina}</p>
                   <p className="text-xs text-slate-500">
-                    {format(new Date(ev.dataInicio), 'HH:mm')} — {format(new Date(ev.dataFim), 'HH:mm')}
+                    {/* horaInicio/horaFim já vêm como "HH:MM" — sem precisar de format() */}
+                    {ev.horaInicio} — {ev.horaFim}
                     {ev.laboratorio ? ` · ${ev.laboratorio.nome}` : ''}
                   </p>
                 </div>

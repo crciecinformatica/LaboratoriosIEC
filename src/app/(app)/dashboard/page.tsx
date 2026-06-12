@@ -22,7 +22,8 @@ async function getDashboardData(userId: string, perfil: string) {
         professor:   { select: { nome: true } },
         turma:       { select: { codigo: true } },
         laboratorio: { select: { nome: true } },
-        // sem datas — dia e horaInicio são campos diretos
+        // dia/horaInicio/horaFim agora vêm do array `datas` (DataHorarioReserva)
+        datas: { orderBy: { dia: 'asc' } },
       },
       orderBy: { criadoEm: 'desc' },
       take: 5,
@@ -37,9 +38,23 @@ const colorMap: Record<string, string> = {
   red: 'badge-red', blue: 'badge-blue',
 }
 
-// Formata "2025-08-15" + "08:00" → "15/08/2025"
-function formatarDia(dia: Date): string {
+// Formata uma data ISO/Date → "15/08/2025"
+function formatarDia(dia: Date | string): string {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(dia))
+}
+
+/** Resumo legível das datas da reserva: primeira data + indicação de quantas restam */
+function resumoDatas(datas: { dia: Date | string }[]): string {
+  if (datas.length === 0) return '—'
+  if (datas.length === 1) return formatarDia(datas[0].dia)
+  return `${formatarDia(datas[0].dia)} +${datas.length - 1}`
+}
+
+/** Horário da primeira data (ou '—' se não houver datas) */
+function resumoHorario(datas: { horaInicio: string; horaFim: string }[]): string {
+  if (datas.length === 0) return '—'
+  const { horaInicio, horaFim } = datas[0]
+  return `${horaInicio} — ${horaFim}${datas.length > 1 ? ' …' : ''}`
 }
 
 export default async function DashboardPage() {
@@ -122,8 +137,9 @@ export default async function DashboardPage() {
                   <td className="text-slate-600">{r.professor.nome}</td>
                   <td className="text-slate-600">{r.turma.codigo}</td>
                   <td className="text-slate-500">{r.laboratorio?.nome ?? '—'}</td>
-                  <td className="text-slate-500 text-xs">{formatarDia(r.dia)}</td>
-                  <td className="text-slate-500 text-xs">{r.horaInicio} — {r.horaFim}</td>
+                  {/* Usa o array r.datas — nunca r.dia diretamente */}
+                  <td className="text-slate-500 text-xs">{resumoDatas(r.datas)}</td>
+                  <td className="text-slate-500 text-xs">{resumoHorario(r.datas)}</td>
                   <td>
                     <span className={`badge ${colorMap[statusColor[r.status as StatusReserva]] ?? 'badge-gray'}`}>
                       {statusLabel[r.status as StatusReserva]}

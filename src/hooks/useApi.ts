@@ -207,7 +207,8 @@ export function useRejectReserva() {
 export function useMarcarConflitoReserva() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { reservaId: string; dataHorarioIds: string[] }) =>
+    // Agora recebe apenas reservaId — a rota marca todas as datas da reserva
+    mutationFn: (data: { reservaId: string }) =>
       axios.post('/api/reservas/conflito', data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
   })
@@ -216,9 +217,10 @@ export function useMarcarConflitoReserva() {
 export function useCorrigirConflito() {
   const qc = useQueryClient()
   return useMutation({
+    // Envia array de datas no formato novo (dia / horaInicio / horaFim)
     mutationFn: (data: {
       reservaId: string
-      correcoes: { dataHorarioId: string; dataInicio: string; dataFim: string }[]
+      datas: { dia: string; horaInicio: string; horaFim: string; recorrente?: boolean }[]
     }) => axios.post('/api/reservas/corrigir-conflito', data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
   })
@@ -227,8 +229,11 @@ export function useCorrigirConflito() {
 export function useReagendarReserva() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { reservaId: string; datas: { dataInicio: string; dataFim: string; recorrente?: boolean }[] }) =>
-      axios.post('/api/reservas/reagendar', data).then((r) => r.data),
+    // Array de datas no formato novo: dia (YYYY-MM-DD) + horaInicio/horaFim (HH:MM)
+    mutationFn: (data: {
+      reservaId: string
+      datas: { dia: string; horaInicio: string; horaFim: string; recorrente?: boolean }[]
+    }) => axios.post('/api/reservas/reagendar', data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
   })
 }
@@ -337,6 +342,16 @@ type UsuarioPublico = {
   id: string; nome: string; email: string; perfil: string; ativo: boolean; criadoEm: string; codigoPessoa: string;
 }
 
+// DataHorarioReserva no formato novo (dia Date + horaInicio/horaFim string)
+export type DataHorario = {
+  id: string
+  dia: string          // ISO Date string (meia-noite UTC)
+  horaInicio: string   // "HH:MM"
+  horaFim: string      // "HH:MM"
+  recorrente: boolean
+  emConflito: boolean
+}
+
 type ReservaResumo = {
   id: string
   titulo: string
@@ -346,7 +361,7 @@ type ReservaResumo = {
   professor: { id: string; nome: string }
   turma: { id: string; codigo: string; nome: string }
   laboratorio: { id: string; nome: string; codigo: string } | null
-  datas: { id: string; dataInicio: string; dataFim: string; recorrente: boolean; emConflito?: boolean }[]
+  datas: DataHorario[]
 }
 
 type PaginatedReservas = PaginatedResponse<ReservaResumo, 'reservas'>
@@ -356,6 +371,7 @@ type ReservaDetalhe = ReservaResumo & {
   softwaresUtilizados: string
   numeroAlunos: number
   motivoRejeicao: string | null
+  cscProtocolo: string | null
   solicitante: { id: string; nome: string; email: string }
   professor: { id: string; nome: string; email: string; matricula: string | null; telefone: string | null }
   turma: {
@@ -385,7 +401,10 @@ type ReservaDetalhe = ReservaResumo & {
 type KanbanCard = ReservaResumo
 type KanbanData = { colunas: { status: string; reservas: KanbanCard[] }[] }
 type AgendaEvento = {
-  id: string; reservaId: string; dataInicio: string; dataFim: string
+  id: string; reservaId: string
+  dia: string          // ISO Date string
+  horaInicio: string   // "HH:MM"
+  horaFim: string      // "HH:MM"
   titulo: string; disciplina: string; status: string
   laboratorio: { id: string; nome: string; codigo: string } | null
   professor: string
@@ -393,7 +412,7 @@ type AgendaEvento = {
 type AgendaSemanal = { inicio: string; fim: string; eventos: AgendaEvento[] }
 type CalendarioLabs = AgendaSemanal & {
   laboratorios: { id: string; nome: string; codigo: string }[]
-  eventos: (AgendaEvento & { turma?: string })[]
+  eventos: (AgendaEvento & { turma?: string })[],
 }
 
 export type { Laboratorio, Professor, Turma, UsuarioPublico, ReservaResumo, ReservaDetalhe, KanbanCard }

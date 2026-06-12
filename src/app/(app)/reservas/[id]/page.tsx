@@ -11,6 +11,7 @@ import {
   useMarcarConflitoReserva,
   useReagendarReserva,
   useUploadAnexo,
+  type DataHorario,
 } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
 import { Modal } from '@/components/ui/modal'
@@ -19,7 +20,7 @@ import { statusLabel, statusColor, modalidadeLabel } from '@/types'
 import type { StatusReserva } from '@prisma/client'
 import {
   ChevronLeft, Loader2, CalendarDays,
-  Paperclip, Upload, FileText, Check, X, AlertTriangle,
+  Paperclip, Upload, FileText, Check, X, AlertTriangle, Plus, Trash2,
 } from 'lucide-react'
 
 const colorMap: Record<string, string> = {
@@ -27,9 +28,120 @@ const colorMap: Record<string, string> = {
   red: 'badge-red', coral: 'badge-coral', blue: 'badge-blue',
 }
 
-function formatarDia(dia: Date | string): string {
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(dia))
+function formatarDia(iso: string | Date): string {
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
 }
+
+// ─── Sub-componente: lista de datas da reserva ────────────────────────────────
+
+function ListaDatas({ datas }: { datas: DataHorario[] }) {
+  if (datas.length === 0) return <p className="text-sm text-slate-400">Nenhuma data cadastrada.</p>
+
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {datas.map((d) => (
+        <li
+          key={d.id}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+            d.emConflito ? 'bg-red-50 border border-red-100' : 'bg-slate-50'
+          }`}
+        >
+          <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${d.emConflito ? 'text-red-500' : 'text-slate-400'}`} />
+          <span className={`font-medium ${d.emConflito ? 'text-red-700' : 'text-slate-700'}`}>
+            {formatarDia(d.dia)}
+          </span>
+          <span className={d.emConflito ? 'text-red-600' : 'text-slate-500'}>
+            {d.horaInicio} — {d.horaFim}
+          </span>
+          {d.recorrente && (
+            <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+              recorrente
+            </span>
+          )}
+          {d.emConflito && (
+            <span className="ml-auto text-[10px] font-medium text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+              conflito
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// ─── Sub-componente: editor de múltiplas datas para reagendamento ─────────────
+
+type DataForm = { dia: string; horaInicio: string; horaFim: string }
+
+function EditorDatas({
+  value,
+  onChange,
+}: {
+  value: DataForm[]
+  onChange: (datas: DataForm[]) => void
+}) {
+  function add() {
+    onChange([...value, { dia: '', horaInicio: '', horaFim: '' }])
+  }
+
+  function remove(i: number) {
+    onChange(value.filter((_, idx) => idx !== i))
+  }
+
+  function update(i: number, field: keyof DataForm, val: string) {
+    onChange(value.map((d, idx) => (idx === i ? { ...d, [field]: val } : d)))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {value.map((d, i) => (
+        <div key={i} className="flex items-end gap-2 flex-wrap">
+          <div className="form-group flex-1 min-w-[130px]">
+            {i === 0 && <label className="label">Data</label>}
+            <input
+              type="date"
+              className="input"
+              value={d.dia}
+              onChange={(e) => update(i, 'dia', e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            {i === 0 && <label className="label">Início</label>}
+            <input
+              type="time"
+              className="input"
+              value={d.horaInicio}
+              onChange={(e) => update(i, 'horaInicio', e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            {i === 0 && <label className="label">Fim</label>}
+            <input
+              type="time"
+              className="input"
+              value={d.horaFim}
+              onChange={(e) => update(i, 'horaFim', e.target.value)}
+            />
+          </div>
+          {value.length > 1 && (
+            <button
+              type="button"
+              className="btn-ghost btn-sm p-1.5 text-red-400 hover:text-red-600 self-end mb-0.5"
+              onClick={() => remove(i)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
+      <button type="button" className="btn-secondary btn-sm self-start" onClick={add}>
+        <Plus className="w-3.5 h-3.5" /> Adicionar data
+      </button>
+    </div>
+  )
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function ReservaDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -46,13 +158,13 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
 
   const [labId,  setLabId]  = useState('')
   const [motivo, setMotivo] = useState('')
-  const [modalConflito, setModalConflito]   = useState(false)
+  const [modalConflito,  setModalConflito]  = useState(false)
   const [modalReagendar, setModalReagendar] = useState(false)
 
-  // Campos do reagendamento — novo modelo dia/hora
-  const [novoDia,        setNovoDia]        = useState('')
-  const [novaHoraInicio, setNovaHoraInicio] = useState('')
-  const [novaHoraFim,    setNovaHoraFim]    = useState('')
+  // Array de datas para o formulário de reagendamento/corrigir conflito
+  const [novasDatas, setNovasDatas] = useState<DataForm[]>([
+    { dia: '', horaInicio: '', horaFim: '' },
+  ])
 
   const isOperador  = ['OPERADOR_TI', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
   const laboratorios = labData?.laboratorios ?? []
@@ -89,22 +201,16 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   }
 
   async function handleReagendar() {
-    if (!novoDia || !novaHoraInicio || !novaHoraFim) {
-      toast.error('Preencha o dia e os horários.')
+    const invalidas = novasDatas.filter((d) => !d.dia || !d.horaInicio || !d.horaFim)
+    if (invalidas.length > 0) {
+      toast.error('Preencha todos os campos de data e horário.')
       return
     }
     try {
-      await reagendar.mutateAsync({
-        reservaId: id,
-        dia:        novoDia,
-        horaInicio: novaHoraInicio,
-        horaFim:    novaHoraFim,
-      })
+      await reagendar.mutateAsync({ reservaId: id, datas: novasDatas })
       toast.success('Reagendamento realizado!')
       setModalReagendar(false)
-      setNovoDia('')
-      setNovaHoraInicio('')
-      setNovaHoraFim('')
+      setNovasDatas([{ dia: '', horaInicio: '', horaFim: '' }])
     } catch (e: unknown) {
       toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao reagendar')
     }
@@ -134,12 +240,15 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
     return <div className="text-center py-20 text-slate-400">Reserva não encontrada.</div>
   }
 
-  const podeAgir    = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
+  const podeAgir     = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
   const podeConflito = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
   const podeCorrigir = reserva.status === 'CONFLITO_DE_DATAS' &&
     (reserva.solicitante.id === session?.user.id ||
       ['ADMINISTRADOR', 'APOIO_ACADEMICO'].includes(session?.user.perfil ?? ''))
-  const podeAnexar  = reserva.solicitante.id === session?.user.id || session?.user.perfil === 'ADMINISTRADOR'
+  const podeAnexar = reserva.solicitante.id === session?.user.id || session?.user.perfil === 'ADMINISTRADOR'
+
+  // Datas em conflito para exibição no card de corrigir
+  const datasEmConflito = reserva.datas.filter((d) => d.emConflito)
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
@@ -188,14 +297,12 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
             )}
           </div>
 
-          {/* Horário — campos diretos dia/horaInicio/horaFim */}
+          {/* Datas — usa o array reserva.datas */}
           <div>
             <h3 className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
-              <CalendarDays className="w-3.5 h-3.5" /> Horário solicitado
+              <CalendarDays className="w-3.5 h-3.5" /> Datas solicitadas
             </h3>
-            <div className="text-sm px-3 py-2 rounded-lg bg-slate-50 text-slate-700">
-              {formatarDia(reserva.dia)}, {reserva.horaInicio} — {reserva.horaFim}
-            </div>
+            <ListaDatas datas={reserva.datas} />
           </div>
 
           {reserva.motivoRejeicao && (
@@ -245,33 +352,30 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
-      {/* Corrigir conflito — apoio acadêmico propõe novo horário */}
+      {/* Corrigir conflito — apoio acadêmico propõe novas datas */}
       {podeCorrigir && (
         <div className="card p-5 flex flex-col gap-4">
-          <h2 className="text-sm font-semibold text-slate-800">Corrigir horário em conflito</h2>
+          <h2 className="text-sm font-semibold text-slate-800">Corrigir horários em conflito</h2>
           <p className="text-sm text-slate-500">
-            O operador identificou um conflito neste horário. Informe uma nova data e horário para análise.
+            O operador identificou conflito(s) nas datas abaixo. Informe novas datas e horários para análise.
           </p>
-          <p className="text-sm px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-red-700">
-            Atual: {formatarDia(reserva.dia)}, {reserva.horaInicio} — {reserva.horaFim}
-          </p>
-          <div className="form-group">
-            <label className="label">Nova data</label>
-            <input type="date" className="input" value={novoDia} onChange={(e) => setNovoDia(e.target.value)} />
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="label">Novo início</label>
-              <input type="time" className="input" value={novaHoraInicio} onChange={(e) => setNovaHoraInicio(e.target.value)} />
+          {datasEmConflito.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {datasEmConflito.map((d) => (
+                <p key={d.id} className="text-sm px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-red-700">
+                  Conflito: {formatarDia(d.dia)}, {d.horaInicio} — {d.horaFim}
+                </p>
+              ))}
             </div>
-            <div className="form-group">
-              <label className="label">Novo fim</label>
-              <input type="time" className="input" value={novaHoraFim} onChange={(e) => setNovaHoraFim(e.target.value)} />
-            </div>
-          </div>
-          <button className="btn-primary btn-sm self-start" onClick={handleReagendar} disabled={reagendar.isPending}>
+          )}
+          <EditorDatas value={novasDatas} onChange={setNovasDatas} />
+          <button
+            className="btn-primary btn-sm self-start"
+            onClick={handleReagendar}
+            disabled={reagendar.isPending}
+          >
             {reagendar.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Enviar nova data e retornar para análise
+            Enviar novas datas e retornar para análise
           </button>
         </div>
       )}
@@ -317,10 +421,17 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       <Modal open={modalConflito} onClose={() => setModalConflito(false)} title="Confirmar conflito de datas" size="sm">
         <div className="px-6 py-4 flex flex-col gap-3">
           <p className="text-sm text-slate-600">
-            Confirma que o horário <strong>{formatarDia(reserva.dia)}, {reserva.horaInicio} — {reserva.horaFim}</strong> está em conflito?
+            Confirma que há conflito nas datas desta reserva?
           </p>
+          <div className="flex flex-col gap-1">
+            {reserva.datas.map((d) => (
+              <p key={d.id} className="text-xs px-2 py-1 bg-slate-50 rounded text-slate-600">
+                {formatarDia(d.dia)}, {d.horaInicio} — {d.horaFim}
+              </p>
+            ))}
+          </div>
           <p className="text-xs text-slate-400">
-            O solicitante poderá propor um novo horário para análise.
+            O solicitante poderá propor novas datas para análise.
           </p>
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-secondary btn-sm" onClick={() => setModalConflito(false)}>Cancelar</button>
@@ -332,25 +443,14 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       </Modal>
 
       {/* Modal reagendar (operador) */}
-      <Modal open={modalReagendar} onClose={() => setModalReagendar(false)} title="Reagendar após conflito" size="sm">
-        <div className="px-6 py-4 flex flex-col gap-3">
-          <div className="form-group">
-            <label className="label">Nova data</label>
-            <input type="date" className="input" value={novoDia} onChange={(e) => setNovoDia(e.target.value)} />
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="label">Hora início</label>
-              <input type="time" className="input" value={novaHoraInicio} onChange={(e) => setNovaHoraInicio(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="label">Hora fim</label>
-              <input type="time" className="input" value={novaHoraFim} onChange={(e) => setNovaHoraFim(e.target.value)} />
-            </div>
-          </div>
+      <Modal open={modalReagendar} onClose={() => setModalReagendar(false)} title="Reagendar após conflito" size="md">
+        <div className="px-6 py-4 flex flex-col gap-4">
+          <EditorDatas value={novasDatas} onChange={setNovasDatas} />
           <div className="flex justify-end gap-2">
             <button className="btn-secondary btn-sm" onClick={() => setModalReagendar(false)}>Cancelar</button>
-            <button className="btn-primary btn-sm" onClick={handleReagendar} disabled={reagendar.isPending}>Reagendar</button>
+            <button className="btn-primary btn-sm" onClick={handleReagendar} disabled={reagendar.isPending}>
+              Reagendar
+            </button>
           </div>
         </div>
       </Modal>

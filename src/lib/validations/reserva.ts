@@ -73,8 +73,17 @@ export const criarReservaFormSchema = z
     turmaId:         z.string().optional(),
     professorManual: professorManualSchema.optional(),
     turmaManual:     turmaManualSchema.optional(),
-    datas:           z.array(dataItemFormSchema).min(1, 'Informe ao menos uma data'),
-  })
+    datas: z
+      .array(
+        z.object({
+          dia: z.string().min(1, 'Informe a data'),
+          horaInicio: z.string().min(1, 'Informe a hora inicial'),
+          horaFim: z.string().min(1, 'Informe a hora final'),
+          recorrente: z.boolean().default(false),
+        })
+      )
+      .min(1, 'Informe pelo menos uma data'),
+    })
   .superRefine((data, ctx) => {
     const temProf  = !!data.professorId || !!data.professorManual
     const temTurma = !!data.turmaId     || !!data.turmaManual

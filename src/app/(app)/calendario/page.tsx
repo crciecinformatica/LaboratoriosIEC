@@ -19,13 +19,34 @@ function slotLabel(hora: number, minuto: number) {
   return `${hora}:${minuto.toString().padStart(2, '0')}`
 }
 
-function eventoNoSlot(dataInicio: string, dataFim: string, dia: Date, hora: number, minuto: number) {
-  const slotInicio = new Date(dia)
-  slotInicio.setHours(hora, minuto, 0, 0)
-  const slotFim = new Date(slotInicio.getTime() + 30 * 60 * 1000)
-  const evInicio = new Date(dataInicio)
-  const evFim = new Date(dataFim)
-  return isSameDay(evInicio, dia) && evInicio < slotFim && evFim > slotInicio
+/**
+ * Verifica se um evento (dia + horaInicio/horaFim) ocupa um slot de 30 min no dia dado.
+ * Substitui a lógica anterior que usava dataInicio/dataFim como datetime completo.
+ */
+function eventoNoSlot(
+  dia: string | Date,
+  horaInicio: string,
+  horaFim: string,
+  diaCelula: Date,
+  hora: number,
+  minuto: number,
+) {
+  // O evento precisa ser no mesmo dia da célula
+  if (!isSameDay(new Date(dia), diaCelula)) return false
+
+  // Converte HH:MM → minutos desde meia-noite
+  function toMin(hhmm: string) {
+    const [h, m] = hhmm.split(':').map(Number)
+    return h * 60 + m
+  }
+
+  const slotInicioMin = hora * 60 + minuto
+  const slotFimMin    = slotInicioMin + 30
+  const evInicioMin   = toMin(horaInicio)
+  const evFimMin      = toMin(horaFim)
+
+  // Sobreposição: evento começa antes do fim do slot E termina depois do início
+  return evInicioMin < slotFimMin && evFimMin > slotInicioMin
 }
 
 export default function CalendarioPage() {
@@ -36,8 +57,8 @@ export default function CalendarioPage() {
   const { data, isLoading } = useCalendarioLaboratorios(labId, semanaISO)
 
   const inicio = startOfWeek(semanaRef, { weekStartsOn: 1 })
-  const fim = endOfWeek(semanaRef, { weekStartsOn: 1 })
-  const dias = eachDayOfInterval({ start: inicio, end: fim })
+  const fim    = endOfWeek(semanaRef,   { weekStartsOn: 1 })
+  const dias   = eachDayOfInterval({ start: inicio, end: fim })
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl">
@@ -84,8 +105,9 @@ export default function CalendarioPage() {
                   {minuto === 0 ? slotLabel(hora, minuto) : ''}
                 </div>
                 {dias.map((dia) => {
+                  // Usa dia/horaInicio/horaFim no lugar de dataInicio/dataFim
                   const eventos = (data?.eventos ?? []).filter((e) =>
-                    eventoNoSlot(e.dataInicio, e.dataFim, dia, hora, minuto)
+                    eventoNoSlot(e.dia, e.horaInicio, e.horaFim, dia, hora, minuto)
                   )
                   return (
                     <div key={`${dia.toISOString()}-${hora}-${minuto}`} className="border-b border-r border-slate-50 p-0.5 min-h-[28px] relative">

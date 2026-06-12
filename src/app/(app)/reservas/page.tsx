@@ -24,6 +24,25 @@ const colorMap: Record<string, string> = {
   red: 'badge-red', coral: 'badge-coral', blue: 'badge-blue',
 }
 
+/** Formata uma data ISO como dd/mm/aaaa em pt-BR */
+function formatarDia(iso: string): string {
+  return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
+}
+
+/** Retorna um resumo legível do intervalo de datas da reserva */
+function resumoDatas(datas: { dia: string; horaInicio: string; horaFim: string }[]): string {
+  if (datas.length === 0) return '—'
+  if (datas.length === 1) return formatarDia(datas[0].dia)
+  return `${formatarDia(datas[0].dia)} + ${datas.length - 1} data${datas.length - 1 > 1 ? 's' : ''}`
+}
+
+/** Retorna o horário da primeira data (ou '—') */
+function resumoHorario(datas: { horaInicio: string; horaFim: string }[]): string {
+  if (datas.length === 0) return '—'
+  const { horaInicio, horaFim } = datas[0]
+  return `${horaInicio} — ${horaFim}${datas.length > 1 ? ' …' : ''}`
+}
+
 export default function ReservasPage() {
   const { data: session } = useSession()
   const [status, setStatus] = useState('')
@@ -74,7 +93,7 @@ export default function ReservasPage() {
                 <th>Título</th>
                 <th>Professor</th>
                 <th>Turma</th>
-                <th>Data</th>
+                <th>Data(s)</th>
                 <th>Horário</th>
                 <th>Status</th>
                 <th>Laboratório</th>
@@ -109,13 +128,9 @@ export default function ReservasPage() {
                       {r.turma.codigo}
                     </code>
                   </td>
-                  {/* dia é Date — formata direto */}
-                  <td className="text-slate-500 text-xs">
-                    {new Intl.DateTimeFormat('pt-BR').format(new Date(r.dia))}
-                  </td>
-                  <td className="text-slate-500 text-xs">
-                    {r.horaInicio} — {r.horaFim}
-                  </td>
+                  {/* Usa o array r.datas — nunca r.dia diretamente */}
+                  <td className="text-slate-500 text-xs">{resumoDatas(r.datas)}</td>
+                  <td className="text-slate-500 text-xs">{resumoHorario(r.datas)}</td>
                   <td>
                     <span className={`badge ${colorMap[statusColor[r.status as StatusReserva]] ?? 'badge-gray'}`}>
                       {statusLabel[r.status as StatusReserva]}
