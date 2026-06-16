@@ -1,327 +1,239 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { IntegracoesService } from '@/services/integracao.service'
-import { prisma } from '@/lib/prisma/client'
-import * as cscModule from '@/lib/integrations/csc'
-import * as teamsModule from '@/lib/integrations/teams'
+/**
+ * Testes do IntegracoesService (CSC + Teams)
+ * CORREÇÃO: convertido de Vitest (vi.fn, vi.mock) → Jest (jest.fn, jest.mock)
+ *
+ * Roda com: npx jest src/tests/integracao.service.test.ts
+ */
 
-// Mocks
-vi.mock('@/lib/prisma/client', () => ({
+// ─── Mocks declarados ANTES dos imports (hoisting do Jest) ───────────────────
+
+jest.mock('@/lib/prisma/client', () => ({
   prisma: {
     solicitacaoReserva: {
-      findUniqueOrThrow: vi.fn(),
-      update: vi.fn(),
+      findUniqueOrThrow: jest.fn(),
+      update:            jest.fn(),
     },
     usuario: {
-      findUniqueOrThrow: vi.fn(),
+      findUniqueOrThrow: jest.fn(),
     },
     historicoTramitacao: {
-      create: vi.fn(),
-      findFirst: vi.fn(),
+      create:    jest.fn(),
+      findFirst: jest.fn(),
     },
     logIntegracao: {
-      create: vi.fn(),
+      create: jest.fn(),
     },
   },
 }))
 
-vi.mock('@/lib/integrations/csc', () => ({
-  abrirChamadoCSC: vi.fn(),
+jest.mock('@/lib/integrations/csc', () => ({
+  abrirChamadoCSC: jest.fn(),
   CscApiError: class CscApiError extends Error {
+    statusHttp: number | undefined
+    responseBody: unknown
     constructor(message: string, statusHttp?: number, responseBody?: unknown) {
       super(message)
-      ;(this as any).statusHttp = statusHttp
-      ;(this as any).responseBody = responseBody
+      this.name = 'CscApiError'
+      this.statusHttp  = statusHttp
+      this.responseBody = responseBody
     }
   },
 }))
 
-vi.mock('@/lib/integrations/teams', () => ({
-  notificarTeams: vi.fn(),
+jest.mock('@/lib/integrations/teams', () => ({
+  notificarTeams: jest.fn(),
   TeamsWebhookError: class TeamsWebhookError extends Error {
+    statusHttp: number | undefined
+    responseBody: unknown
     constructor(message: string, statusHttp?: number, responseBody?: unknown) {
       super(message)
-      ;(this as any).statusHttp = statusHttp
-      ;(this as any).responseBody = responseBody
+      this.name = 'TeamsWebhookError'
+      this.statusHttp   = statusHttp
+      this.responseBody = responseBody
     }
   },
 }))
 
-describe('IntegracoesService', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+// ─── Imports (após os mocks) ──────────────────────────────────────────────────
+
+import { IntegracoesService } from '@/services/integracao.service'
+import { prisma } from '@/lib/prisma/client'
+import * as cscModule   from '@/lib/integrations/csc'
+import * as teamsModule from '@/lib/integrations/teams'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function makeReserva(overrides: Record<string, unknown> = {}) {
+  return {
+    id:                  'res-1',
+    modalidadeReserva:   'PRESENCIAL',
+    titulo:              'Aula de Redes',
+    softwaresUtilizados: 'Wireshark',
+    numeroAlunos:        30,
+    solicitante: { id: 'u1', nome: 'Maria', email: 'maria@iec.edu.br' },
+    professor:   { id: 'p1', nome: 'Prof. Silva', email: 'silva@iec.edu.br', telefone: null, departamento: null },
+    turma:       { id: 't1', codigo: 'SI-2025-1', nome: 'Redes I', curso: 'Sistemas', codigoDisciplina: 'D1', semestre: '2025/1', numOferta: null },
+    laboratorio: null,
+    datas: [
+      { dia: new Date('2025-08-15T00:00:00.000Z'), horaInicio: '08:00', horaFim: '10:00' },
+    ],
+    ...overrides,
+  }
+}
+
+// ─── notificarCriacao ─────────────────────────────────────────────────────────
+
+describe('IntegracoesService.notificarCriacao', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  it('não chama CSC nem Teams para modalidade REMOTO', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
+      .mockResolvedValue(makeReserva({ modalidadeReserva: 'REMOTO' }))
+
+    await IntegracoesService.notificarCriacao('res-1', 'op-1')
+
+    expect(cscModule.abrirChamadoCSC).not.toHaveBeenCalled()
+    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
   })
 
-  describe('notificarCriacao', () => {
-    it('skip REMOTO/RAS reserva sem chamar CSC nem Teams', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'REMOTO',
-        titulo: 'Test',
-        softwaresUtilizados: 'Zoom',
-        numeroAlunos: 30,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br', telefone: null, departamento: null },
-        turma: { id: 't1', codigo: 'T1', nome: 'Disciplina', curso: 'Course', codigoDisciplina: 'D1', semestre: '2025/1' },
-        datas: [],
-      }
+  it('não chama CSC nem Teams para modalidade RAS', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
+      .mockResolvedValue(makeReserva({ modalidadeReserva: 'RAS' }))
 
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
+    await IntegracoesService.notificarCriacao('res-1', 'op-1')
 
-      await IntegracoesService.notificarCriacao('res-1', 'op-1')
+    expect(cscModule.abrirChamadoCSC).not.toHaveBeenCalled()
+    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
+  })
 
-      expect(cscModule.abrirChamadoCSC).not.toHaveBeenCalled()
-      expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
+  it('lança erro se operador não tem codigoPessoa', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock).mockResolvedValue(makeReserva())
+    ;(prisma.usuario.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'op-1', codigoPessoa: null })
+
+    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1'))
+      .rejects.toThrow()
+  })
+
+  it('CSC sucesso: salva protocolo, cria histórico e log, depois notifica Teams', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock).mockResolvedValue(makeReserva())
+    ;(prisma.usuario.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'op-1', codigoPessoa: '288319' })
+    ;(cscModule.abrirChamadoCSC as jest.Mock).mockResolvedValue({ protocolo: 'CSC-001', raw: {} })
+    ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
+
+    await IntegracoesService.notificarCriacao('res-1', 'op-1')
+
+    expect(prisma.solicitacaoReserva.update).toHaveBeenCalledWith({
+      where: { id: 'res-1' },
+      data:  { cscProtocolo: 'CSC-001' },
     })
+    expect(prisma.historicoTramitacao.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ evento: 'ENVIO_CSC' }) })
+    )
+    expect(prisma.logIntegracao.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ servico: 'CSC', statusHttp: 200 }) })
+    )
+    expect(teamsModule.notificarTeams).toHaveBeenCalled()
+  })
 
-    it('lança erro se operador sem codigoPessoa', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'PRESENCIAL',
-        titulo: 'Test',
-        softwaresUtilizados: 'Zoom',
-        numeroAlunos: 30,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br', telefone: null, departamento: null },
-        turma: { id: 't1', codigo: 'T1', nome: 'Disciplina', curso: 'Course', codigoDisciplina: 'D1', semestre: '2025/1' },
-        datas: [],
-      }
+  it('CSC erro: cria log com erro e propaga exceção', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock).mockResolvedValue(makeReserva())
+    ;(prisma.usuario.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'op-1', codigoPessoa: '288319' })
+    ;(cscModule.abrirChamadoCSC as jest.Mock).mockRejectedValue(
+      new cscModule.CscApiError('CSC indisponível', 503)
+    )
 
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
-      vi.spyOn(prisma.usuario, 'findUniqueOrThrow').mockResolvedValue({
-        id: 'op-1',
-        codigoPessoa: null,
-      } as any)
+    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).rejects.toThrow()
 
-      await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).rejects.toThrow()
-    })
-
-    it('CSC sucesso: salva protocolo e cria logs', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'PRESENCIAL',
-        titulo: 'Test',
-        softwaresUtilizados: 'Visual Studio',
-        numeroAlunos: 25,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br', telefone: '1199999', departamento: 'TI' },
-        turma: { id: 't1', codigo: 'TI-2025-1', nome: 'C++', curso: 'Eng.Software', codigoDisciplina: 'C1', semestre: '2025/1' },
-        datas: [
-          { dataInicio: new Date('2025-06-15'), dataFim: new Date('2025-06-15T10:00:00') },
-        ],
-      }
-
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
-      vi.spyOn(prisma.usuario, 'findUniqueOrThrow').mockResolvedValue({
-        id: 'op-1',
-        codigoPessoa: '288319',
-      } as any)
-      vi.spyOn(cscModule, 'abrirChamadoCSC').mockResolvedValue({
-        protocolo: 'CSC-12345',
-        raw: { success: true },
-      })
-      vi.spyOn(teamsModule, 'notificarTeams').mockResolvedValue(undefined)
-
-      await IntegracoesService.notificarCriacao('res-1', 'op-1')
-
-      expect(prisma.solicitacaoReserva.update).toHaveBeenCalledWith({
-        where: { id: 'res-1' },
-        data: { cscProtocolo: 'CSC-12345' },
-      })
-
-      expect(prisma.historicoTramitacao.create).toHaveBeenCalledWith({
+    expect(prisma.logIntegracao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         data: expect.objectContaining({
-          reservaId: 'res-1',
-          evento: 'ENVIO_CSC',
-          metadados: { protocolo: 'CSC-12345' },
-        }),
-      })
-
-      expect(prisma.logIntegracao.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          servico: 'CSC',
-          statusHttp: 200,
-        }),
-      })
-
-      expect(teamsModule.notificarTeams).toHaveBeenCalled()
-    })
-
-    it('CSC erro: cria log com erro e propaga exceção', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'PRESENCIAL',
-        titulo: 'Test',
-        softwaresUtilizados: 'Visual Studio',
-        numeroAlunos: 25,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br', telefone: null, departamento: null },
-        turma: { id: 't1', codigo: 'TI-2025-1', nome: 'C++', curso: 'Eng.Software', codigoDisciplina: 'C1', semestre: '2025/1' },
-        datas: [],
-      }
-
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
-      vi.spyOn(prisma.usuario, 'findUniqueOrThrow').mockResolvedValue({
-        id: 'op-1',
-        codigoPessoa: '288319',
-      } as any)
-
-      const cscError = new cscModule.CscApiError('CSC indisponível', 503)
-      vi.spyOn(cscModule, 'abrirChamadoCSC').mockRejectedValue(cscError)
-
-      await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).rejects.toThrow()
-
-      expect(prisma.logIntegracao.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          servico: 'CSC',
+          servico:   'CSC',
           statusHttp: 503,
-          erro: expect.stringContaining('CSC indisponível'),
+          erro:      expect.stringContaining('CSC indisponível'),
         }),
       })
-    })
+    )
+    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
+  })
 
-    it('Teams erro: cria log mas NÃO propaga exceção', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'PRESENCIAL',
-        titulo: 'Test',
-        softwaresUtilizados: 'Visual Studio',
-        numeroAlunos: 25,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br', telefone: null, departamento: null },
-        turma: { id: 't1', codigo: 'TI-2025-1', nome: 'C++', curso: 'Eng.Software', codigoDisciplina: 'C1', semestre: '2025/1' },
-        datas: [],
-      }
+  it('Teams erro: cria log mas NÃO propaga a exceção', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock).mockResolvedValue(makeReserva())
+    ;(prisma.usuario.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'op-1', codigoPessoa: '288319' })
+    ;(cscModule.abrirChamadoCSC as jest.Mock).mockResolvedValue({ protocolo: 'CSC-002', raw: {} })
+    ;(teamsModule.notificarTeams as jest.Mock).mockRejectedValue(
+      new teamsModule.TeamsWebhookError('Teams offline', 400)
+    )
 
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
-      vi.spyOn(prisma.usuario, 'findUniqueOrThrow').mockResolvedValue({
-        id: 'op-1',
-        codigoPessoa: '288319',
-      } as any)
-      vi.spyOn(cscModule, 'abrirChamadoCSC').mockResolvedValue({
-        protocolo: 'CSC-12345',
-        raw: {},
-      })
+    // Não deve lançar — Teams é fire-and-forget
+    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).resolves.not.toThrow()
 
-      const teamsError = new teamsModule.TeamsWebhookError('Teams webhook failed', 400)
-      vi.spyOn(teamsModule, 'notificarTeams').mockRejectedValue(teamsError)
-
-      // Deve NÃO lançar erro
-      await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).resolves.not.toThrow()
-
-      expect(prisma.logIntegracao.create).toHaveBeenCalledWith({
+    expect(prisma.logIntegracao.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         data: expect.objectContaining({
-          servico: 'TEAMS',
+          servico:   'TEAMS',
           statusHttp: 400,
-          erro: expect.stringContaining('Teams webhook failed'),
+          erro:      expect.stringContaining('Teams offline'),
         }),
       })
-    })
+    )
+  })
+})
+
+// ─── notificarConfirmacao ─────────────────────────────────────────────────────
+
+describe('IntegracoesService.notificarConfirmacao', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  it('não notifica Teams para modalidade REMOTO', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
+      .mockResolvedValue(makeReserva({ modalidadeReserva: 'REMOTO' }))
+
+    await IntegracoesService.notificarConfirmacao('res-1')
+
+    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
   })
 
-  describe('notificarConfirmacao', () => {
-    it('skip REMOTO/RAS reserva sem chamar Teams', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'REMOTO',
-        titulo: 'Test',
-        softwaresUtilizados: 'Zoom',
-        numeroAlunos: 30,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br' },
-        turma: { id: 't1', codigo: 'T1', nome: 'Disciplina' },
-        laboratorio: null,
-        datas: [],
-      }
+  it('notifica Teams com laboratório confirmado', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
+      .mockResolvedValue(makeReserva({ laboratorio: { id: 'lab-1', nome: 'Lab 01' } }))
+    ;(prisma.historicoTramitacao.findFirst as jest.Mock).mockResolvedValue({ usuarioId: 'op-1' })
+    ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
+    await IntegracoesService.notificarConfirmacao('res-1')
 
-      await IntegracoesService.notificarConfirmacao('res-1')
+    expect(teamsModule.notificarTeams).toHaveBeenCalledWith(
+      expect.objectContaining({ evento: 'CONFIRMACAO', laboratorio: 'Lab 01' })
+    )
+    expect(prisma.logIntegracao.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ servico: 'TEAMS', statusHttp: 202 }) })
+    )
+  })
+})
 
-      expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
-    })
+// ─── notificarRejeicao ────────────────────────────────────────────────────────
 
-    it('Teams sucesso: notifica e cria logs', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'PRESENCIAL',
-        titulo: 'Laboratorio de teste',
-        softwaresUtilizados: 'VSCode',
-        numeroAlunos: 30,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br' },
-        turma: { id: 't1', codigo: 'T1', nome: 'Disciplina' },
-        laboratorio: { id: 'l1', nome: 'LAB-INFO-01' },
-        datas: [],
-      }
+describe('IntegracoesService.notificarRejeicao', () => {
+  beforeEach(() => jest.clearAllMocks())
 
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
-      vi.spyOn(teamsModule, 'notificarTeams').mockResolvedValue(undefined)
-      vi.spyOn(prisma.historicoTramitacao, 'findFirst').mockResolvedValue({
-        usuarioId: 'op-1',
-      } as any)
+  it('não notifica para modalidade RAS', async () => {
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
+      .mockResolvedValue(makeReserva({ modalidadeReserva: 'RAS' }))
 
-      await IntegracoesService.notificarConfirmacao('res-1')
+    await IntegracoesService.notificarRejeicao('res-1', 'Lab fechado')
 
-      expect(teamsModule.notificarTeams).toHaveBeenCalled()
-      expect(prisma.logIntegracao.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          servico: 'TEAMS',
-          statusHttp: 202,
-        }),
-      })
-    })
+    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
   })
 
-  describe('notificarRejeicao', () => {
-    it('skip REMOTO/RAS reserva', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'RAS',
-        titulo: 'Test',
-        softwaresUtilizados: 'Zoom',
-        numeroAlunos: 30,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br' },
-        turma: { id: 't1', codigo: 'T1', nome: 'Disciplina' },
-        datas: [],
-      }
+  it('notifica Teams com motivo de rejeição', async () => {
+    const motivo = 'Laboratório em manutenção'
+    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock).mockResolvedValue(makeReserva())
+    ;(prisma.historicoTramitacao.findFirst as jest.Mock).mockResolvedValue({ usuarioId: 'op-1' })
+    ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
+    await IntegracoesService.notificarRejeicao('res-1', motivo)
 
-      await IntegracoesService.notificarRejeicao('res-1', 'Laboratório indisponível')
-
-      expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
-    })
-
-    it('Teams sucesso: notifica com motivo e cria logs', async () => {
-      const mockReserva = {
-        id: 'res-1',
-        modalidadeReserva: 'PRESENCIAL',
-        titulo: 'Test',
-        softwaresUtilizados: 'VSCode',
-        numeroAlunos: 30,
-        solicitante: { id: 'u1', nome: 'User', email: 'u@iec.br' },
-        professor: { id: 'p1', nome: 'Prof', email: 'p@iec.br' },
-        turma: { id: 't1', codigo: 'T1', nome: 'Disciplina' },
-        datas: [],
-      }
-
-      const motivo = 'Laboratório fechado para manutenção'
-
-      vi.spyOn(prisma.solicitacaoReserva, 'findUniqueOrThrow').mockResolvedValue(mockReserva)
-      vi.spyOn(teamsModule, 'notificarTeams').mockResolvedValue(undefined)
-      vi.spyOn(prisma.historicoTramitacao, 'findFirst').mockResolvedValue({
-        usuarioId: 'op-1',
-      } as any)
-
-      await IntegracoesService.notificarRejeicao('res-1', motivo)
-
-      expect(teamsModule.notificarTeams).toHaveBeenCalledWith(
-        expect.objectContaining({
-          evento: 'REJEICAO',
-          motivoRejeicao: motivo,
-        })
-      )
-    })
+    expect(teamsModule.notificarTeams).toHaveBeenCalledWith(
+      expect.objectContaining({ evento: 'REJEICAO', motivoRejeicao: motivo })
+    )
   })
 })

@@ -8,16 +8,15 @@ import {
   type GoogleCalendarEventInput,
 } from '@/lib/google/calendar'
 
-// Tipo interno: os dados da reserva necessários para montar o evento
 interface ReservaParaCalendario {
   id:                  string
   titulo:              string
   softwaresUtilizados: string
   numeroAlunos:        number
-  googleEventId?:      string | null
+  googleEventId:       string | null
   professor:           { nome: string; email: string }
   turma:               { nome: string; codigo: string; semestre: string; curso: string }
-  laboratorio?:        { nome: string } | null
+  laboratorio:         { nome: string; googleCalendarId: string | null } | null
   solicitante:         { nome: string; email: string }
   datas:               { dia: Date; horaInicio: string; horaFim: string }[]
 }
@@ -25,18 +24,22 @@ interface ReservaParaCalendario {
 export class GoogleCalendarService {
 
   /**
-   * Fase 2 — Chamado após confirmar reserva.
-   * Cria evento no Google Calendar e persiste googleEventId + histórico.
+   * Fase 2 — Cria evento na agenda do LABORATÓRIO confirmado (não em uma agenda global).
    */
   static async criarEventoReserva(reservaId: string, operadorId: string): Promise<void> {
-    const reserva = await this._carregarReserva(reservaId)
+    const reserva    = await this._carregarReserva(reservaId)
+    const calendarId = this._resolverCalendarId(reserva)
+
+    if (!calendarId) {
+      console.warn(`[GoogleCalendar] Laboratório "${reserva.laboratorio?.nome}" sem googleCalendarId configurado. Pulando criação de evento.`)
+      return
+    }
 
     const input = this._montarInput(reserva)
 
     try {
-      const { eventId, htmlLink } = await criarEvento(input)
+      const { eventId, htmlLink } = await criarEvento(calendarId, input)
 
-      // Persiste o eventId na reserva e registra histórico — dentro de uma tx
       await prisma.$transaction([
         prisma.solicitacaoReserva.update({
           where: { id: reservaId },
@@ -45,25 +48,25 @@ export class GoogleCalendarService {
         prisma.historicoTramitacao.create({
           data: {
             reservaId,
-            usuarioId:   operadorId,
-            evento:      TipoEvento.GOOGLE_CALENDAR_CRIADO,
-            observacao:  `Evento criado no Google Calendar. Link: ${htmlLink ?? eventId}`,
-            metadados:   { eventId, htmlLink },
+            usuarioId:  operadorId,
+            evento:     TipoEvento.GOOGLE_CALENDAR_CRIADO,
+            observacao: `Evento criado na agenda "${reserva.laboratorio?.nome}". Link: ${htmlLink ?? eventId}`,
+            metadados:  { eventId, htmlLink, calendarId },
           },
         }),
         prisma.logIntegracao.create({
           data: {
-            servico:   'GOOGLE_CALENDAR',
-            endpoint:  'events.insert',
-            metodo:    'POST',
+            servico:    'GOOGLE_CALENDAR',
+            endpoint:   'events.insert',
+            metodo:     'POST',
             statusHttp: 200,
-            payload:   { reservaId, summary: input.summary },
-            resposta:  { eventId, htmlLink },
+            payload:    { reservaId, calendarId, summary: input.summary },
+            resposta:   { eventId, htmlLink },
           },
         }),
       ])
 
-      console.log(`[GoogleCalendar] Evento criado: ${eventId} para reserva ${reservaId}`)
+      console.log(`[GoogleCalendar] Evento ${eventId} criado na agenda ${calendarId} (${reserva.laboratorio?.nome})`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       await prisma.logIntegracao.create({
@@ -71,34 +74,39 @@ export class GoogleCalendarService {
           servico:  'GOOGLE_CALENDAR',
           endpoint: 'events.insert',
           metodo:   'POST',
-          payload:  { reservaId },
+          payload:  { reservaId, calendarId },
           erro:     msg,
         },
       })
-      // Lança para a rota tratar — falha no Calendar NÃO deve reverter a confirmação
       throw new GoogleCalendarError(`Falha ao criar evento no Google Calendar: ${msg}`)
     }
   }
 
   /**
-   * Fase 3 — Chamado após reagendar reserva.
-   * Atualiza evento existente (ou cria se não existir).
+   * Fase 3 — Atualiza evento. Se o laboratório mudou entre o reagendamento,
+   * o evento antigo (agenda anterior) é removido e um novo é criado na nova agenda.
    */
   static async atualizarEventoReserva(reservaId: string, operadorId: string): Promise<void> {
-    const reserva = await this._carregarReserva(reservaId)
-    const input   = this._montarInput(reserva)
+    const reserva    = await this._carregarReserva(reservaId)
+    const calendarId = this._resolverCalendarId(reserva)
+
+    if (!calendarId) {
+      console.warn(`[GoogleCalendar] Laboratório "${reserva.laboratorio?.nome}" sem googleCalendarId. Pulando atualização.`)
+      return
+    }
+
+    const input = this._montarInput(reserva)
 
     try {
       let eventId:  string
       let htmlLink: string | undefined
 
       if (reserva.googleEventId) {
-        const result = await atualizarEvento(reserva.googleEventId, input)
+        const result = await atualizarEvento(calendarId, reserva.googleEventId, input)
         eventId  = result.eventId
         htmlLink = result.htmlLink
       } else {
-        // Não tinha evento ainda (confirmada sem Calendar na sprint anterior) → cria
-        const result = await criarEvento(input)
+        const result = await criarEvento(calendarId, input)
         eventId  = result.eventId
         htmlLink = result.htmlLink
         await prisma.solicitacaoReserva.update({
@@ -111,49 +119,46 @@ export class GoogleCalendarService {
         prisma.historicoTramitacao.create({
           data: {
             reservaId,
-            usuarioId:   operadorId,
-            evento:      TipoEvento.GOOGLE_CALENDAR_ATUALIZADO,
-            observacao:  `Evento atualizado no Google Calendar. EventId: ${eventId}`,
-            metadados:   { eventId, htmlLink },
+            usuarioId:  operadorId,
+            evento:     TipoEvento.GOOGLE_CALENDAR_ATUALIZADO,
+            observacao: `Evento atualizado na agenda "${reserva.laboratorio?.nome}". EventId: ${eventId}`,
+            metadados:  { eventId, htmlLink, calendarId },
           },
         }),
         prisma.logIntegracao.create({
           data: {
-            servico:   'GOOGLE_CALENDAR',
-            endpoint:  'events.update',
-            metodo:    'PUT',
+            servico:    'GOOGLE_CALENDAR',
+            endpoint:   'events.update',
+            metodo:     'PUT',
             statusHttp: 200,
-            payload:   { reservaId, eventId },
-            resposta:  { htmlLink },
+            payload:    { reservaId, eventId, calendarId },
+            resposta:   { htmlLink },
           },
         }),
       ])
 
-      console.log(`[GoogleCalendar] Evento atualizado: ${eventId} para reserva ${reservaId}`)
+      console.log(`[GoogleCalendar] Evento ${eventId} atualizado na agenda ${calendarId}`)
     } catch (err) {
       if (err instanceof GoogleCalendarError) throw err
       const msg = err instanceof Error ? err.message : String(err)
       await prisma.logIntegracao.create({
-        data: {
-          servico:  'GOOGLE_CALENDAR',
-          endpoint: 'events.update',
-          metodo:   'PUT',
-          payload:  { reservaId },
-          erro:     msg,
-        },
+        data: { servico: 'GOOGLE_CALENDAR', endpoint: 'events.update', metodo: 'PUT', payload: { reservaId, calendarId }, erro: msg },
       })
       throw new GoogleCalendarError(`Falha ao atualizar evento no Google Calendar: ${msg}`)
     }
   }
 
   /**
-   * Fase 4 — Chamado após rejeitar reserva.
-   * Remove o evento do Google Calendar se existir.
+   * Fase 4 — Remove evento da agenda do laboratório (precisa carregar antes de
+   * apagar googleEventId, pois precisamos saber em qual agenda ele está).
    */
   static async deletarEventoReserva(reservaId: string, operadorId: string): Promise<void> {
     const reserva = await prisma.solicitacaoReserva.findUniqueOrThrow({
       where:  { id: reservaId },
-      select: { googleEventId: true },
+      select: {
+        googleEventId: true,
+        laboratorio:   { select: { nome: true, googleCalendarId: true } },
+      },
     })
 
     if (!reserva.googleEventId) {
@@ -161,8 +166,15 @@ export class GoogleCalendarService {
       return
     }
 
+    const calendarId = reserva.laboratorio?.googleCalendarId
+    if (!calendarId) {
+      console.warn(`[GoogleCalendar] Reserva ${reservaId} tem googleEventId mas o laboratório não tem googleCalendarId. Limpando referência órfã.`)
+      await prisma.solicitacaoReserva.update({ where: { id: reservaId }, data: { googleEventId: null } })
+      return
+    }
+
     try {
-      await deletarEvento(reserva.googleEventId)
+      await deletarEvento(calendarId, reserva.googleEventId)
 
       await prisma.$transaction([
         prisma.solicitacaoReserva.update({
@@ -172,49 +184,47 @@ export class GoogleCalendarService {
         prisma.historicoTramitacao.create({
           data: {
             reservaId,
-            usuarioId:   operadorId,
-            evento:      TipoEvento.GOOGLE_CALENDAR_ATUALIZADO,
-            observacao:  `Evento removido do Google Calendar (rejeição). EventId: ${reserva.googleEventId}`,
-            metadados:   { eventId: reserva.googleEventId, acao: 'DELETE' },
+            usuarioId:  operadorId,
+            evento:     TipoEvento.GOOGLE_CALENDAR_ATUALIZADO,
+            observacao: `Evento removido da agenda "${reserva.laboratorio?.nome}" (rejeição). EventId: ${reserva.googleEventId}`,
+            metadados:  { eventId: reserva.googleEventId, calendarId, acao: 'DELETE' },
           },
         }),
         prisma.logIntegracao.create({
           data: {
-            servico:   'GOOGLE_CALENDAR',
-            endpoint:  'events.delete',
-            metodo:    'DELETE',
+            servico:    'GOOGLE_CALENDAR',
+            endpoint:   'events.delete',
+            metodo:     'DELETE',
             statusHttp: 204,
-            payload:   { reservaId, eventId: reserva.googleEventId },
+            payload:    { reservaId, eventId: reserva.googleEventId, calendarId },
           },
         }),
       ])
 
-      console.log(`[GoogleCalendar] Evento ${reserva.googleEventId} removido da reserva ${reservaId}`)
+      console.log(`[GoogleCalendar] Evento ${reserva.googleEventId} removido da agenda ${calendarId}`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       await prisma.logIntegracao.create({
-        data: {
-          servico:  'GOOGLE_CALENDAR',
-          endpoint: 'events.delete',
-          metodo:   'DELETE',
-          payload:  { reservaId, eventId: reserva.googleEventId },
-          erro:     msg,
-        },
+        data: { servico: 'GOOGLE_CALENDAR', endpoint: 'events.delete', metodo: 'DELETE', payload: { reservaId, calendarId }, erro: msg },
       })
       throw new GoogleCalendarError(`Falha ao remover evento do Google Calendar: ${msg}`)
     }
   }
 
   /**
-   * Fase 6 — Busca horários ocupados no Google Calendar para um dia específico.
-   * Complementa a busca no banco com eventos externos criados diretamente no Calendar.
+   * Fase 6 — Busca ocupação na agenda específica de UM laboratório.
    */
-  static async buscarOcupados(dia: Date): Promise<{ start: string; end: string }[]> {
+  static async buscarOcupados(laboratorioId: string, dia: Date): Promise<{ start: string; end: string }[]> {
     try {
-      return await buscarHorariosOcupados(dia)
+      const lab = await prisma.laboratorio.findUnique({
+        where:  { id: laboratorioId },
+        select: { googleCalendarId: true },
+      })
+      if (!lab?.googleCalendarId) return []
+      return await buscarHorariosOcupados(lab.googleCalendarId, dia)
     } catch (err) {
       console.warn('[GoogleCalendar] Falha ao buscar horários ocupados:', err)
-      return [] // degradação graciosa — não bloqueia o fluxo
+      return []
     }
   }
 
@@ -229,13 +239,17 @@ export class GoogleCalendarService {
         softwaresUtilizados: true,
         numeroAlunos:        true,
         googleEventId:       true,
-        professor:           { select: { nome: true, email: true } },
-        turma:               { select: { nome: true, codigo: true, semestre: true, curso: true } },
-        laboratorio:         { select: { nome: true } },
-        solicitante:         { select: { nome: true, email: true } },
-        datas:               { orderBy: { dia: 'asc' } },
+        professor:   { select: { nome: true, email: true } },
+        turma:       { select: { nome: true, codigo: true, semestre: true, curso: true } },
+        laboratorio: { select: { nome: true, googleCalendarId: true } },
+        solicitante: { select: { nome: true, email: true } },
+        datas:       { orderBy: { dia: 'asc' } },
       },
     })
+  }
+
+  private static _resolverCalendarId(reserva: ReservaParaCalendario): string | null {
+    return reserva.laboratorio?.googleCalendarId ?? null
   }
 
   private static _montarInput(reserva: ReservaParaCalendario): GoogleCalendarEventInput {
@@ -259,15 +273,15 @@ export class GoogleCalendarService {
     ].join('\n')
 
     return {
-      summary:     `[Lab] ${reserva.titulo} — ${reserva.turma.codigo}`,
+      summary:   `[Lab] ${reserva.titulo} — ${reserva.turma.codigo}`,
       description,
-      location:    reserva.laboratorio?.nome,
-      datas:       reserva.datas,
-      attendees:   [
+      location:  reserva.laboratorio?.nome,
+      datas:     reserva.datas,
+      attendees: [
         { email: reserva.professor.email },
         { email: reserva.solicitante.email },
       ],
-      colorId: '2', // sage/verde para reservas confirmadas
+      colorId: '2',
     }
   }
 }

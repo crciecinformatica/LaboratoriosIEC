@@ -4,8 +4,9 @@ import type { OAuth2Client } from 'google-auth-library'
 let _client: OAuth2Client | null = null
 
 /**
- * Retorna um OAuth2Client já configurado com refresh token.
- * O access token é renovado automaticamente pelo SDK quando expirado.
+ * Um único OAuth2Client autentica TODAS as agendas (uma por laboratório),
+ * desde que a conta autenticada tenha acesso de "Fazer alterações e gerenciar
+ * compartilhamento" em cada agenda (ver passo a passo no README).
  */
 export function getGoogleAuthClient(): OAuth2Client {
   if (_client) return _client
@@ -27,10 +28,6 @@ export function getGoogleAuthClient(): OAuth2Client {
   return _client
 }
 
-/**
- * Gera a URL para o fluxo OAuth2 inicial (apenas necessário UMA vez para obter o refresh token).
- * Uso: acesse a URL no browser, autorize, e copie o code retornado para /api/google-calendar/oauth/callback.
- */
 export function getAuthorizationUrl(): string {
   const clientId     = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
@@ -44,10 +41,8 @@ export function getAuthorizationUrl(): string {
 
   return client.generateAuthUrl({
     access_type: 'offline',
-    prompt:      'consent', // força retorno do refresh_token
-    scope: [
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/calendar.events',
-    ],
+    prompt:      'consent',
+    // calendar (full) já inclui leitura/escrita de eventos + calendarList
+    scope: ['https://www.googleapis.com/auth/calendar'],
   })
 }

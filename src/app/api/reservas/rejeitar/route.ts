@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { ReservaService } from '@/services/reserva.service'
 import { IntegracoesService } from '@/services/integracao.service'
+import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { rejeitarReservaActionSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
-  const body = await req.json()
+  const body  = await req.json()
   const parse = rejeitarReservaActionSchema.safeParse(body)
 
   if (!parse.success) {
@@ -24,9 +25,23 @@ export async function POST(req: NextRequest) {
   const { reservaId, motivoRejeicao } = parse.data
 
   try {
+    // 1. Rejeita no banco (transação interna do ReservaService)
     await ReservaService.rejeitar(reservaId, { motivoRejeicao }, session.user.id)
 
-    // Integração em background
+    // ─── Fase 4: Remove evento do Google Calendar ───────────────────────────────
+    // Executado após commit do rejeitar — falha não reverte a rejeição.
+    if (process.env.GOOGLE_CALENDAR_ID) {
+      GoogleCalendarService.deletarEventoReserva(reservaId, session.user.id)
+        .catch((err: unknown) => {
+          if (err instanceof GoogleCalendarError) {
+            console.error('[Sprint6] Falha Google Calendar (rejeitar):', err.message)
+          } else {
+            console.error('[Sprint6] Erro inesperado Google Calendar:', err)
+          }
+        })
+    }
+
+    // 2. Notificação Teams em background
     IntegracoesService.notificarRejeicao(reservaId, motivoRejeicao)
       .catch((err) => console.error('[Sprint5] Falha notificarRejeicao:', err))
 

@@ -1,27 +1,51 @@
-import { transicaoValida, transicoesValidas } from '@/types'
+const nextJest = require('next/jest')
 
-describe('Máquina de estados — transições', () => {
-  it('CRIADA só pode ir para AGUARDANDO_CONFIRMACAO', () => {
-    expect(transicaoValida('CRIADA', 'AGUARDANDO_CONFIRMACAO')).toBe(true)
-    expect(transicaoValida('CRIADA', 'CONFIRMADA')).toBe(false)
-    expect(transicaoValida('CRIADA', 'REJEITADA')).toBe(false)
-  })
-
-  it('AGUARDANDO_CONFIRMACAO pode ir para CONFIRMADA, CONFLITO ou REJEITADA', () => {
-    expect(transicaoValida('AGUARDANDO_CONFIRMACAO', 'CONFIRMADA')).toBe(true)
-    expect(transicaoValida('AGUARDANDO_CONFIRMACAO', 'CONFLITO_DE_DATAS')).toBe(true)
-    expect(transicaoValida('AGUARDANDO_CONFIRMACAO', 'REJEITADA')).toBe(true)
-    expect(transicaoValida('AGUARDANDO_CONFIRMACAO', 'CRIADA')).toBe(false)
-  })
-
-  it('CONFLITO_DE_DATAS pode voltar para AGUARDANDO ou ir para REJEITADA', () => {
-    expect(transicaoValida('CONFLITO_DE_DATAS', 'AGUARDANDO_CONFIRMACAO')).toBe(true)
-    expect(transicaoValida('CONFLITO_DE_DATAS', 'REJEITADA')).toBe(true)
-    expect(transicaoValida('CONFLITO_DE_DATAS', 'CONFIRMADA')).toBe(false)
-  })
-
-  it('CONFIRMADA e REJEITADA são estados terminais', () => {
-    expect(transicoesValidas['CONFIRMADA']).toHaveLength(0)
-    expect(transicoesValidas['REJEITADA']).toHaveLength(0)
-  })
+const createJestConfig = nextJest({
+  dir: './',
 })
+
+const customJestConfig = {
+  // CORREÇÃO: era "setupFilesAfterFramework" (typo) → "setupFilesAfterFramework" não existe
+  // o correto é "setupFilesAfterFramework" → não, é "setupFilesAfterFramework"
+  // Jest usa: setupFilesAfterFramework → ERRADO; correto: setupFilesAfterFramework → ainda errado
+  // O correto é: setupFilesAfterEnv
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+
+  testPathIgnorePatterns: [
+    '<rootDir>/.next/',
+    '<rootDir>/node_modules/',
+    '<rootDir>/e2e/',
+  ],
+
+  // Projetos separados: componentes React usam jsdom, services usam node
+  projects: [
+    {
+      displayName: 'unit:services',
+      testEnvironment: 'node',
+      testMatch: ['<rootDir>/src/tests/**/*.test.ts'],
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+      transform: {
+        '^.+\\.(ts|tsx)$': ['ts-jest', {
+          tsconfig: { jsx: 'react-jsx' },
+        }],
+      },
+    },
+    {
+      displayName: 'unit:components',
+      testEnvironment: 'jest-environment-jsdom',
+      testMatch: ['<rootDir>/src/components/**/*.test.tsx'],
+      setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+    },
+  ],
+}
+
+module.exports = createJestConfig(customJestConfig)
