@@ -1,14 +1,13 @@
 import { prisma } from '@/lib/prisma/client'
 import { StatusReserva, TipoEvento } from '@prisma/client'
 import { transicaoValida } from '@/types'
-
+import { ConflitosService } from './conflito.service'
 import type {
   CriarReservaInput,
   ConfirmarReservaInput,
   RejeitarReservaInput,
   CorrigirConflitoInput,
 } from '@/lib/validations/reserva'
-import { ConflitosService } from './reserva-conflito.service'
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 

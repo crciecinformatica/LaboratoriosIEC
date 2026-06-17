@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
-import { ReservaService } from '@/services/reserva.service'
 import { IntegracoesService } from '@/services/integracao.service'
 import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { ConflitosService } from '@/services/conflito.service'
@@ -27,27 +26,32 @@ export async function POST(req: NextRequest) {
   const { reservaId, laboratorioId } = parse.data
 
   try {
-    // ─── Fase 8: Transação SERIALIZÁVEL para evitar race condition ──────────────
-    // Garante que dois operadores confirmando ao mesmo tempo não causem
-    // dupla confirmação no mesmo laboratório/horário.
+    // ─── Transação SERIALIZÁVEL para evitar race condition ──────────────────────
+    //
+    // CORREÇÃO: a detecção de conflito agora recebe `tx` explicitamente, para
+    // rodar na MESMA conexão/snapshot da transação. Antes, ConflitosService
+    // usava o client Prisma global por padrão — isso fazia a verificação correr
+    // fora do isolamento Serializable, competindo pelo pool de conexões com a
+    // própria transação aberta, e em loop (1 query por data). O resultado era
+    // a transação ultrapassar o timeout padrão de 5000ms do Prisma e fechar
+    // antes de chegar no findUniqueOrThrow seguinte — gerando
+    // "Transaction already closed: ... query cannot be executed on an expired
+    // transaction" e o 500 reportado.
+    //
+    // Também aumentamos timeout/maxWait como margem de segurança para
+    // ambientes mais lentos (ex: dev com poucas conexões no pool).
     await prisma.$transaction(
       async (tx) => {
-        // 1. Busca datas dentro da transação (leitura serializada)
         const datas = await tx.dataHorarioReserva.findMany({
           where:  { reservaId },
           select: { dia: true, horaInicio: true, horaFim: true },
         })
 
-        if (!datas.length) {
-          throw new Error('Reserva sem datas cadastradas')
-        }
+        if (!datas.length) throw new Error('Reserva sem datas cadastradas')
 
-        // 2. Verifica conflito com lock implícito do nível Serializable
-        const resultado = await ConflitosService.detectarConflitos(
-          laboratorioId,
-          datas,
-          reservaId
-        )
+        // Passa `tx` — a verificação de conflito agora participa da mesma
+        // transação/snapshot, em uma única query (ver conflito.service.ts).
+        const resultado = await ConflitosService.detectarConflitos(laboratorioId, datas, reservaId, tx)
 
         if (resultado.temConflito) {
           const detalhes = resultado.datasEmConflito
@@ -56,22 +60,17 @@ export async function POST(req: NextRequest) {
               return `${dia} ${d.horaInicio}–${d.horaFim}${d.reservaConflitante ? ` (conflita com: ${d.reservaConflitante.titulo})` : ''}`
             })
             .join('; ')
-
-          throw new ConflitoError(
-            `Conflito de datas detectado para o laboratório selecionado: ${detalhes}`
-          )
+          throw new ConflitoError(`Conflito de datas detectado para o laboratório selecionado: ${detalhes}`)
         }
 
-        // 3. Atualiza status + laboratório (dentro da tx serializada)
-        await tx.solicitacaoReserva.update({
-          where: { id: reservaId },
-          data: { status: 'CONFIRMADA', laboratorioId },
-        })
-
-        // 4. Registra histórico de confirmação
         const reservaAtual = await tx.solicitacaoReserva.findUniqueOrThrow({
           where:  { id: reservaId },
           select: { status: true },
+        })
+
+        await tx.solicitacaoReserva.update({
+          where: { id: reservaId },
+          data:  { status: 'CONFIRMADA', laboratorioId },
         })
 
         await tx.historicoTramitacao.create({
@@ -84,25 +83,29 @@ export async function POST(req: NextRequest) {
           },
         })
       },
-      // Nível Serializable: previne anomalias de leitura phantom e write skew
-      { isolationLevel: 'Serializable' }
+      {
+        isolationLevel: 'Serializable',
+        // Margem extra de segurança — a lógica em si agora é 1 query rápida,
+        // mas mantemos folga para ambientes com latência maior de banco.
+        timeout: 10_000, // tempo máximo de execução da transação (ms)
+        maxWait: 5_000,  // tempo máximo esperando um slot de conexão livre (ms)
+      }
     )
 
-    // ─── Fase 2: Google Calendar (fora da tx — side effect externo) ────────────
-    // Executado após commit da transação principal para não bloquear o lock.
-    // Falha no Calendar NÃO reverte a confirmação (notifica mas não falha o request).
-    if (process.env.GOOGLE_CALENDAR_ID) {
-      GoogleCalendarService.criarEventoReserva(reservaId, session.user.id)
-        .catch((err: unknown) => {
-          if (err instanceof GoogleCalendarError) {
-            console.error('[Sprint6] Falha Google Calendar (confirmar):', err.message)
-          } else {
-            console.error('[Sprint6] Erro inesperado Google Calendar:', err)
-          }
-        })
-    }
+    // ─── Google Calendar (fora da tx) ───────────────────────────────────────────
+    // Chamada de rede externa — propositalmente FORA da transação, para nunca
+    // contar contra o timeout da transação do banco. O calendarId é resolvido
+    // internamente a partir de laboratorio.googleCalendarId.
+    GoogleCalendarService.criarEventoReserva(reservaId, session.user.id)
+      .catch((err: unknown) => {
+        if (err instanceof GoogleCalendarError) {
+          console.error('[Sprint6] Falha Google Calendar (confirmar):', err.message)
+        } else {
+          console.error('[Sprint6] Erro inesperado Google Calendar:', err)
+        }
+      })
 
-    // ─── Notificação Teams (background, não bloqueia response) ─────────────────
+    // ─── Notificação Teams (background) ─────────────────────────────────────────
     IntegracoesService.notificarConfirmacao(reservaId)
       .catch((err) => console.error('[Sprint5] Falha notificarConfirmacao:', err))
 
@@ -112,6 +115,17 @@ export async function POST(req: NextRequest) {
     if (err instanceof ConflitoError) {
       return NextResponse.json({ error: err.message }, { status: 409 })
     }
+
+    // P2034 = write conflict / serialization failure do Postgres — sinaliza
+    // que outra confirmação simultânea venceu a corrida. Resposta 409 é mais
+    // correta que 500 aqui, pois o cliente pode tentar de novo.
+    if (isPrismaSerializationError(err)) {
+      return NextResponse.json(
+        { error: 'Conflito de concorrência: outra operação alterou esta reserva. Tente novamente.' },
+        { status: 409 }
+      )
+    }
+
     const msg = err instanceof Error ? err.message : 'Erro ao confirmar reserva'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
@@ -122,4 +136,13 @@ class ConflitoError extends Error {
     super(message)
     this.name = 'ConflitoError'
   }
+}
+
+function isPrismaSerializationError(err: unknown): boolean {
+  return Boolean(
+    err &&
+    typeof err === 'object' &&
+    'code' in err &&
+    (err as { code?: string }).code === 'P2034'
+  )
 }

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma/client'
 import { GoogleCalendarService } from './google-calendar.service'
+import type { Prisma } from '@prisma/client'
 
 export interface HorarioDisponivel {
   horaInicio: string
@@ -16,6 +17,14 @@ export interface ResultadoConflito {
   }[]
 }
 
+// Cliente Prisma genérico — aceita tanto o client global quanto o `tx` de uma transação.
+// CRÍTICO: ao chamar detectarConflitos() de dentro de uma transação Serializable,
+// é obrigatório passar o `tx` recebido pelo callback, nunca o `prisma` global —
+// caso contrário a leitura roda em outra conexão/snapshot, fora do isolamento da
+// transação, e ainda compete pelo pool de conexões, podendo travar até o timeout
+// padrão de 5000ms do Prisma (erro "Transaction already closed").
+type PrismaClientOrTx = typeof prisma | Prisma.TransactionClient
+
 function toMin(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number)
   return h * 60 + m
@@ -29,29 +38,58 @@ function fromMin(min: number): string {
 
 export class ConflitosService {
 
+  /**
+   * Detecta conflitos para um conjunto de datas.
+   *
+   * PERFORMANCE: antes fazia 1 query (`findFirst`) por data, em loop sequencial
+   * — para reservas com várias datas, isso multiplicava o round-trip ao banco e
+   * era a causa raiz do timeout de transação. Agora faz UMA única query
+   * (`findMany`) buscando todas as `DataHorarioReserva` do laboratório que
+   * colidem com QUALQUER uma das datas pedidas, e cruza o resultado em memória.
+   *
+   * @param db  Client Prisma a usar — passe o `tx` quando chamado de dentro de
+   *            uma transação (ex: confirmar reserva); omita para usar o client
+   *            global (ex: chamadas fora de transação, como em sugerirHorarios).
+   */
   static async detectarConflitos(
     laboratorioId: string,
     datas: { dia: Date; horaInicio: string; horaFim: string }[],
-    excluirReservaId?: string
+    excluirReservaId?: string,
+    db: PrismaClientOrTx = prisma
   ): Promise<ResultadoConflito> {
+    if (datas.length === 0) return { temConflito: false, datasEmConflito: [] }
+
+    const dias = datas.map((d) => d.dia)
+
+    // Uma única query: todas as DataHorarioReserva do laboratório, nesses dias,
+    // com status relevante. A sobreposição de horário é filtrada em memória
+    // (evita N queries com OR complexo, e evita problemas de comparação de
+    // string de horário dentro do SQL).
+    const candidatos = await db.dataHorarioReserva.findMany({
+      where: {
+        dia: { in: dias },
+        reserva: {
+          laboratorioId,
+          status: { in: ['CONFIRMADA', 'AGUARDANDO_CONFIRMACAO'] },
+          ...(excluirReservaId ? { id: { not: excluirReservaId } } : {}),
+        },
+      },
+      select: {
+        dia: true,
+        horaInicio: true,
+        horaFim: true,
+        reserva: { select: { id: true, titulo: true, status: true } },
+      },
+    })
+
     const datasEmConflito: ResultadoConflito['datasEmConflito'] = []
 
     for (const d of datas) {
-      const conflito = await prisma.dataHorarioReserva.findFirst({
-        where: {
-          dia: d.dia,
-          AND: [
-            { horaInicio: { lt: d.horaFim } },
-            { horaFim:    { gt: d.horaInicio } },
-          ],
-          reserva: {
-            laboratorioId,
-            status: { in: ['CONFIRMADA', 'AGUARDANDO_CONFIRMACAO'] },
-            ...(excluirReservaId ? { id: { not: excluirReservaId } } : {}),
-          },
-        },
-        include: { reserva: { select: { id: true, titulo: true, status: true } } },
-      })
+      const conflito = candidatos.find((c) =>
+        c.dia.getTime() === d.dia.getTime() &&
+        toMin(c.horaInicio) < toMin(d.horaFim) &&
+        toMin(c.horaFim)    > toMin(d.horaInicio)
+      )
 
       if (conflito) {
         datasEmConflito.push({
@@ -67,8 +105,8 @@ export class ConflitosService {
   }
 
   /**
-   * Sugestão de horários — agora busca a ocupação na agenda ESPECÍFICA do
-   * laboratório (laboratorio.googleCalendarId), além das reservas do banco.
+   * Sugestão de horários — chamado fora de transação, usa o client global.
+   * Sem alteração de lógica, apenas mantido aqui por completude do arquivo.
    */
   static async sugerirHorarios(
     laboratorioId: string,
@@ -88,7 +126,10 @@ export class ConflitosService {
       select: { horaInicio: true, horaFim: true },
     })
 
-    // Busca eventos diretamente na agenda do Google Calendar deste laboratório
+    // Busca eventos diretamente na agenda do Google Calendar deste laboratório.
+    // Atenção: chamada de rede externa — nunca rodar isso dentro de uma
+    // transação Serializable (o timeout de 5s do Prisma não tolera latência
+    // de API externa). Esta função só é chamada fora de transação.
     const eventosCalendar = await GoogleCalendarService.buscarOcupados(laboratorioId, dia)
 
     const todosOcupados = [
@@ -126,19 +167,22 @@ export class ConflitosService {
 
   static async laboratoriosDisponiveis(dia: Date, horaInicio: string, horaFim: string): Promise<string[]> {
     const todos = await prisma.laboratorio.findMany({ where: { ativo: true }, select: { id: true } })
-    const disponiveis: string[] = []
 
-    for (const lab of todos) {
-      const conflito = await prisma.dataHorarioReserva.findFirst({
-        where: {
-          dia,
-          AND: [{ horaInicio: { lt: horaFim } }, { horaFim: { gt: horaInicio } }],
-          reserva: { laboratorioId: lab.id, status: { in: ['CONFIRMADA', 'AGUARDANDO_CONFIRMACAO'] } },
+    // Uma única query para todos os labs, em vez de 1 findFirst por laboratório
+    const ocupados = await prisma.dataHorarioReserva.findMany({
+      where: {
+        dia,
+        AND: [{ horaInicio: { lt: horaFim } }, { horaFim: { gt: horaInicio } }],
+        reserva: {
+          laboratorioId: { in: todos.map((l) => l.id) },
+          status: { in: ['CONFIRMADA', 'AGUARDANDO_CONFIRMACAO'] },
         },
-      })
-      if (!conflito) disponiveis.push(lab.id)
-    }
+      },
+      select: { reserva: { select: { laboratorioId: true } } },
+    })
 
-    return disponiveis
+    const idsOcupados = new Set(ocupados.map((o) => o.reserva.laboratorioId).filter(Boolean))
+
+    return todos.map((l) => l.id).filter((id) => !idsOcupados.has(id))
   }
 }

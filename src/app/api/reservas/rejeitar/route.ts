@@ -28,18 +28,17 @@ export async function POST(req: NextRequest) {
     // 1. Rejeita no banco (transação interna do ReservaService)
     await ReservaService.rejeitar(reservaId, { motivoRejeicao }, session.user.id)
 
-    // ─── Fase 4: Remove evento do Google Calendar ───────────────────────────────
+    // ─── Remove evento do Google Calendar ───────────────────────────────────────
+    // O calendarId é resolvido internamente a partir de laboratorio.googleCalendarId.
     // Executado após commit do rejeitar — falha não reverte a rejeição.
-    if (process.env.GOOGLE_CALENDAR_ID) {
-      GoogleCalendarService.deletarEventoReserva(reservaId, session.user.id)
-        .catch((err: unknown) => {
-          if (err instanceof GoogleCalendarError) {
-            console.error('[Sprint6] Falha Google Calendar (rejeitar):', err.message)
-          } else {
-            console.error('[Sprint6] Erro inesperado Google Calendar:', err)
-          }
-        })
-    }
+    GoogleCalendarService.deletarEventoReserva(reservaId, session.user.id)
+      .catch((err: unknown) => {
+        if (err instanceof GoogleCalendarError) {
+          console.error('[Sprint6] Falha Google Calendar (rejeitar):', err.message)
+        } else {
+          console.error('[Sprint6] Erro inesperado Google Calendar:', err)
+        }
+      })
 
     // 2. Notificação Teams em background
     IntegracoesService.notificarRejeicao(reservaId, motivoRejeicao)

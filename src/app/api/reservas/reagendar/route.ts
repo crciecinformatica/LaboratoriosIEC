@@ -29,19 +29,17 @@ export async function POST(req: NextRequest) {
     // 1. Persiste novas datas + volta para AGUARDANDO_CONFIRMACAO
     await ReservaService.reagendar(reservaId, datas, session.user.id)
 
-    // ─── Fase 3: Atualiza evento no Google Calendar ─────────────────────────────
-    // Atualiza/cria o evento com as novas datas após commit do reagendar.
+    // ─── Atualiza evento no Google Calendar ─────────────────────────────────────
+    // O calendarId é resolvido a partir de laboratorio.googleCalendarId.
     // Falha não reverte o reagendamento — apenas loga.
-    if (process.env.GOOGLE_CALENDAR_ID) {
-      GoogleCalendarService.atualizarEventoReserva(reservaId, session.user.id)
-        .catch((err: unknown) => {
-          if (err instanceof GoogleCalendarError) {
-            console.error('[Sprint6] Falha Google Calendar (reagendar):', err.message)
-          } else {
-            console.error('[Sprint6] Erro inesperado Google Calendar:', err)
-          }
-        })
-    }
+    GoogleCalendarService.atualizarEventoReserva(reservaId, session.user.id)
+      .catch((err: unknown) => {
+        if (err instanceof GoogleCalendarError) {
+          console.error('[Sprint6] Falha Google Calendar (reagendar):', err.message)
+        } else {
+          console.error('[Sprint6] Erro inesperado Google Calendar:', err)
+        }
+      })
 
     return NextResponse.json({ ok: true })
   } catch (err) {
