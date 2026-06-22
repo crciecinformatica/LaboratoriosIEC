@@ -21,14 +21,36 @@ function calendarApi() {
   return google.calendar({ version: 'v3', auth: getGoogleAuthClient() })
 }
 
+const GOOGLE_CALENDAR_TIME_ZONE = 'America/Sao_Paulo'
+const GOOGLE_CALENDAR_UTC_OFFSET = '-03:00'
+
+function formatDateInCalendarTimeZone(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: GOOGLE_CALENDAR_TIME_ZONE,
+    year:  'numeric',
+    month: '2-digit',
+    day:   '2-digit',
+  }).formatToParts(date)
+
+  const year  = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day   = parts.find((part) => part.type === 'day')?.value
+
+  if (!year || !month || !day) {
+    throw new Error('Não foi possível formatar a data para o Google Calendar.')
+  }
+
+  return `${year}-${month}-${day}`
+}
+
 function buildEventBody(input: GoogleCalendarEventInput) {
-  const dateStr  = input.dia.toISOString().split('T')[0]
+  const dateStr  = formatDateInCalendarTimeZone(input.dia)
   const [sH, sM] = input.horaInicio.split(':')
   const [eH, eM] = input.horaFim.split(':')
 
-  const timeZone  = 'America/Sao_Paulo'
-  const startDate = `${dateStr}T${sH}:${sM}:00`
-  const endDate   = `${dateStr}T${eH}:${eM}:00`
+  const timeZone  = GOOGLE_CALENDAR_TIME_ZONE
+  const startDate = `${dateStr}T${sH}:${sM}:00${GOOGLE_CALENDAR_UTC_OFFSET}`
+  const endDate   = `${dateStr}T${eH}:${eM}:00${GOOGLE_CALENDAR_UTC_OFFSET}`
 
   return {
     summary:     input.summary,
@@ -121,15 +143,15 @@ export async function buscarHorariosOcupados(
 ): Promise<{ start: string; end: string }[]> {
   if (!calendarId) return []
 
-  const dateStr = dia.toISOString().split('T')[0]
-  const timeMin  = `${dateStr}T00:00:00-03:00`
-  const timeMax  = `${dateStr}T23:59:59-03:00`
+  const dateStr = formatDateInCalendarTimeZone(dia)
+  const timeMin  = `${dateStr}T00:00:00${GOOGLE_CALENDAR_UTC_OFFSET}`
+  const timeMax  = `${dateStr}T23:59:59${GOOGLE_CALENDAR_UTC_OFFSET}`
 
   const { data } = await calendarApi().freebusy.query({
     requestBody: {
       timeMin,
       timeMax,
-      timeZone: 'America/Sao_Paulo',
+      timeZone: GOOGLE_CALENDAR_TIME_ZONE,
       items:    [{ id: calendarId }],
     },
   })
@@ -154,15 +176,15 @@ export async function buscarHorariosOcupadosMultiplos(
   const validos = calendarIds.filter(Boolean)
   if (validos.length === 0) return {}
 
-  const dateStr = dia.toISOString().split('T')[0]
-  const timeMin = `${dateStr}T00:00:00-03:00`
-  const timeMax = `${dateStr}T23:59:59-03:00`
+  const dateStr = formatDateInCalendarTimeZone(dia)
+  const timeMin = `${dateStr}T00:00:00${GOOGLE_CALENDAR_UTC_OFFSET}`
+  const timeMax = `${dateStr}T23:59:59${GOOGLE_CALENDAR_UTC_OFFSET}`
 
   const { data } = await calendarApi().freebusy.query({
     requestBody: {
       timeMin,
       timeMax,
-      timeZone: 'America/Sao_Paulo',
+      timeZone: GOOGLE_CALENDAR_TIME_ZONE,
       items:    validos.map((id) => ({ id })),
     },
   })
