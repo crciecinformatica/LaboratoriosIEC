@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { ReservaService } from '@/services/reserva.service'
-import { IntegracoesService } from '@/services/integracao.service'
 import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { rejeitarReservaActionSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
@@ -29,8 +28,10 @@ export async function POST(req: NextRequest) {
     await ReservaService.rejeitar(reservaId, { motivoRejeicao }, session.user.id)
 
     // ─── Remove evento do Google Calendar ───────────────────────────────────────
-    // O calendarId é resolvido internamente a partir de laboratorio.googleCalendarId.
-    // Executado após commit do rejeitar — falha não reverte a rejeição.
+    // Mantido: rejeição ainda remove o evento do Calendar, se existir.
+    // REMOVIDO: notificação via Teams/CSC — rejeição não dispara mais nenhuma
+    // ação externa de notificação, por decisão de negócio (CSC/Teams só na
+    // criação da solicitação).
     GoogleCalendarService.deletarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {
@@ -39,10 +40,6 @@ export async function POST(req: NextRequest) {
           console.error('[Sprint6] Erro inesperado Google Calendar:', err)
         }
       })
-
-    // 2. Notificação Teams em background
-    IntegracoesService.notificarRejeicao(reservaId, motivoRejeicao)
-      .catch((err) => console.error('[Sprint5] Falha notificarRejeicao:', err))
 
     return NextResponse.json({ ok: true })
   } catch (err) {

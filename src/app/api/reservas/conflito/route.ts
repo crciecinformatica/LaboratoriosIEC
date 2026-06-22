@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Dados inválidos', detalhes: parse.error.flatten() }, { status: 422 })
   }
 
-  const { reservaId } = parse.data
+  const { reservaId, dataHorarioIds } = parse.data
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -35,16 +35,44 @@ export async function POST(req: NextRequest) {
         throw new Error(`Transição inválida: ${reserva.status} → CONFLITO_DE_DATAS`)
       }
 
-      // Marca todas as datas da reserva como em conflito
-      await tx.dataHorarioReserva.updateMany({
-        where: { reservaId },
-        data:  { emConflito: true },
-      })
+      // Se dataHorarioIds foi informado e não está vazio, valida que todos os
+      // IDs pertencem de fato a esta reserva (evita marcar datas de outra
+      // reserva por engano/manipulação do payload) e marca SÓ essas.
+      // Caso contrário (omitido ou array vazio), mantém o comportamento
+      // anterior: marca todas as datas da reserva como em conflito.
+      const temSelecaoEspecifica = Array.isArray(dataHorarioIds) && dataHorarioIds.length > 0
+
+      if (temSelecaoEspecifica) {
+        const datasDaReserva = await tx.dataHorarioReserva.findMany({
+          where:  { reservaId },
+          select: { id: true },
+        })
+        const idsValidos = new Set(datasDaReserva.map((d) => d.id))
+        const idsInvalidos = dataHorarioIds!.filter((id) => !idsValidos.has(id))
+
+        if (idsInvalidos.length > 0) {
+          throw new Error(`Data(s) informada(s) não pertencem a esta reserva: ${idsInvalidos.join(', ')}`)
+        }
+
+        await tx.dataHorarioReserva.updateMany({
+          where: { id: { in: dataHorarioIds } },
+          data:  { emConflito: true },
+        })
+      } else {
+        await tx.dataHorarioReserva.updateMany({
+          where: { reservaId },
+          data:  { emConflito: true },
+        })
+      }
 
       await tx.solicitacaoReserva.update({
         where: { id: reservaId },
         data:  { status: 'CONFLITO_DE_DATAS' },
       })
+
+      const observacao = temSelecaoEspecifica
+        ? `Conflito marcado em ${dataHorarioIds!.length} data(s) específica(s) da reserva.`
+        : 'Conflito marcado em todas as datas da reserva.'
 
       await tx.historicoTramitacao.create({
         data: {
@@ -53,6 +81,7 @@ export async function POST(req: NextRequest) {
           evento:       TipoEvento.CONFLITO_DETECTADO,
           statusAntes:  reserva.status,
           statusDepois: 'CONFLITO_DE_DATAS',
+          observacao,
         },
       })
     })

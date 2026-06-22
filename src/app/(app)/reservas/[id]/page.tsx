@@ -8,7 +8,6 @@ import {
   useLaboratorios,
   useConfirmReserva,
   useRejectReserva,
-  useMarcarConflitoReserva,
   useReagendarReserva,
   useUploadAnexo,
   type DataHorario,
@@ -16,6 +15,7 @@ import {
 import { useToast } from '@/components/ui/layout/toast'
 import { Modal } from '@/components/ui/modal'
 import { HistoricoTimeline } from '@/components/reservas/historico-timeline'
+import { MarcarConflitoDialog } from '@/components/reservas/marcar-conflito-dialog'
 import { statusLabel, statusColor, modalidadeLabel } from '@/types'
 import type { StatusReserva } from '@prisma/client'
 import {
@@ -152,7 +152,6 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   const { data: labData }            = useLaboratorios('', 1, 100)
   const confirmar = useConfirmReserva()
   const rejeitar  = useRejectReserva()
-  const conflito  = useMarcarConflitoReserva()
   const reagendar = useReagendarReserva()
   const upload    = useUploadAnexo(id)
 
@@ -187,16 +186,6 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       setMotivo('')
     } catch (e: unknown) {
       toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao rejeitar')
-    }
-  }
-
-  async function confirmarConflito() {
-    try {
-      await conflito.mutateAsync({ reservaId: id })
-      toast.success('Conflito registrado.')
-      setModalConflito(false)
-    } catch (e: unknown) {
-      toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao marcar conflito')
     }
   }
 
@@ -417,30 +406,14 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {/* Modal confirmar conflito */}
-      <Modal open={modalConflito} onClose={() => setModalConflito(false)} title="Confirmar conflito de datas" size="sm">
-        <div className="px-6 py-4 flex flex-col gap-3">
-          <p className="text-sm text-slate-600">
-            Confirma que há conflito nas datas desta reserva?
-          </p>
-          <div className="flex flex-col gap-1">
-            {reserva.datas.map((d) => (
-              <p key={d.id} className="text-xs px-2 py-1 bg-slate-50 rounded text-slate-600">
-                {formatarDia(d.dia)}, {d.horaInicio} — {d.horaFim}
-              </p>
-            ))}
-          </div>
-          <p className="text-xs text-slate-400">
-            O solicitante poderá propor novas datas para análise.
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            <button className="btn-secondary btn-sm" onClick={() => setModalConflito(false)}>Cancelar</button>
-            <button className="btn-primary btn-sm" onClick={confirmarConflito} disabled={conflito.isPending}>
-              Confirmar conflito
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {/* Marcar conflito — agora permite selecionar datas específicas */}
+      <MarcarConflitoDialog
+        open={modalConflito}
+        onClose={() => setModalConflito(false)}
+        reservaId={id}
+        datas={reserva.datas}
+        onSucesso={() => setModalConflito(false)}
+      />
 
       {/* Modal reagendar (operador) */}
       <Modal open={modalReagendar} onClose={() => setModalReagendar(false)} title="Reagendar após conflito" size="md">

@@ -5,11 +5,9 @@ export interface GoogleCalendarEventInput {
   summary:     string
   description: string
   location?:   string
-  datas: {
-    dia:        Date
-    horaInicio: string
-    horaFim:    string
-  }[]
+  dia:         Date
+  horaInicio:  string
+  horaFim:     string
   attendees?: { email: string }[]
   colorId?: string
 }
@@ -23,10 +21,10 @@ function calendarApi() {
   return google.calendar({ version: 'v3', auth: getGoogleAuthClient() })
 }
 
-function buildEventBody(input: GoogleCalendarEventInput, data: GoogleCalendarEventInput['datas'][0]) {
-  const dateStr  = data.dia.toISOString().split('T')[0]
-  const [sH, sM] = data.horaInicio.split(':')
-  const [eH, eM] = data.horaFim.split(':')
+function buildEventBody(input: GoogleCalendarEventInput) {
+  const dateStr  = input.dia.toISOString().split('T')[0]
+  const [sH, sM] = input.horaInicio.split(':')
+  const [eH, eM] = input.horaFim.split(':')
 
   const timeZone  = 'America/Sao_Paulo'
   const startDate = `${dateStr}T${sH}:${sM}:00`
@@ -48,28 +46,17 @@ function buildEventBody(input: GoogleCalendarEventInput, data: GoogleCalendarEve
 }
 
 /**
- * Cria um evento em uma agenda específica (calendarId = agenda do laboratório).
- *
- * @param calendarId  ID da agenda do Google Calendar correspondente ao laboratório
- *                     (ex: "c_abc123@group.calendar.google.com"), vindo de
- *                     laboratorio.googleCalendarId no banco.
+ * Cria UM evento para UMA data específica (1 data = 1 evento).
+ * Para reservas com múltiplas datas, chame esta função uma vez por data
+ * (ver GoogleCalendarService, que orquestra a criação em lote).
  */
 export async function criarEvento(
   calendarId: string,
   input: GoogleCalendarEventInput
 ): Promise<GoogleCalendarEventResult> {
   if (!calendarId) throw new Error('calendarId não informado — laboratório sem googleCalendarId configurado.')
-  if (input.datas.length === 0) throw new Error('Nenhuma data fornecida para criar evento.')
 
-  const body = buildEventBody(input, input.datas[0])
-
-  if (input.datas.length > 1) {
-    const listaDatas = input.datas.map((d) => {
-      const dia = new Intl.DateTimeFormat('pt-BR').format(d.dia)
-      return `• ${dia} ${d.horaInicio}–${d.horaFim}`
-    }).join('\n')
-    body.description = `${body.description}\n\nDatas adicionais:\n${listaDatas}`
-  }
+  const body = buildEventBody(input)
 
   const { data } = await calendarApi().events.insert({
     calendarId,
@@ -83,8 +70,7 @@ export async function criarEvento(
 }
 
 /**
- * Atualiza um evento existente na agenda do laboratório.
- * Se o evento não existir (404), recria na mesma agenda.
+ * Atualiza o evento de UMA data específica. 404 → recria.
  */
 export async function atualizarEvento(
   calendarId: string,
@@ -92,17 +78,8 @@ export async function atualizarEvento(
   input:      GoogleCalendarEventInput
 ): Promise<GoogleCalendarEventResult> {
   if (!calendarId) throw new Error('calendarId não informado — laboratório sem googleCalendarId configurado.')
-  if (input.datas.length === 0) throw new Error('Nenhuma data fornecida para atualizar evento.')
 
-  const body = buildEventBody(input, input.datas[0])
-
-  if (input.datas.length > 1) {
-    const listaDatas = input.datas.map((d) => {
-      const dia = new Intl.DateTimeFormat('pt-BR').format(d.dia)
-      return `• ${dia} ${d.horaInicio}–${d.horaFim}`
-    }).join('\n')
-    body.description = `${body.description}\n\nDatas adicionais:\n${listaDatas}`
-  }
+  const body = buildEventBody(input)
 
   try {
     const { data } = await calendarApi().events.update({ calendarId, eventId, requestBody: body })
@@ -118,7 +95,7 @@ export async function atualizarEvento(
 }
 
 /**
- * Remove um evento da agenda do laboratório. 404 é ignorado.
+ * Remove o evento de UMA data específica. 404 é ignorado.
  */
 export async function deletarEvento(calendarId: string, eventId: string): Promise<void> {
   if (!calendarId) throw new Error('calendarId não informado — laboratório sem googleCalendarId configurado.')
@@ -168,8 +145,7 @@ export async function buscarHorariosOcupados(
 }
 
 /**
- * Busca horários ocupados em VÁRIAS agendas de uma vez (útil para visão geral/dashboard).
- * Retorna um mapa calendarId → intervalos ocupados.
+ * Busca horários ocupados em VÁRIAS agendas de uma vez.
  */
 export async function buscarHorariosOcupadosMultiplos(
   calendarIds: string[],
@@ -205,8 +181,6 @@ export async function buscarHorariosOcupadosMultiplos(
 
 /**
  * Lista as agendas (calendarList) disponíveis para a conta autenticada.
- * Útil no setup inicial para descobrir o calendarId de cada agenda visível
- * na lista da imagem (ex: "Prédio 1 - Lab 505 (24)").
  */
 export async function listarAgendasDisponiveis(): Promise<{ id: string; summary: string }[]> {
   const { data } = await calendarApi().calendarList.list({ maxResults: 250 })

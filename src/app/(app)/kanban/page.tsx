@@ -11,11 +11,12 @@ import { useDraggable, useDroppable } from '@dnd-kit/core'
 import {
   useKanbanReservas, useLaboratorios,
   useConfirmReserva, useRejectReserva,
-  useMarcarConflitoReserva, useReagendarReserva,
+  useReagendarReserva,
   type KanbanCard,
 } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
 import { Modal } from '@/components/ui/modal'
+import { MarcarConflitoDialog } from '@/components/reservas/marcar-conflito-dialog'
 import { statusLabel, statusColor, transicaoValida } from '@/types'
 import type { StatusReserva } from '@prisma/client'
 import { Loader2, GripVertical, Plus, Trash2 } from 'lucide-react'
@@ -146,7 +147,6 @@ function ReservasKanban() {
   const { data: labData }            = useLaboratorios('', 1, 100)
   const confirmar = useConfirmReserva()
   const rejeitar  = useRejectReserva()
-  const conflito  = useMarcarConflitoReserva()
   const reagendar = useReagendarReserva()
   const toast     = useToast()
 
@@ -192,17 +192,6 @@ function ReservasKanban() {
     else if (targetStatus === 'AGUARDANDO_CONFIRMACAO') setModal('reagendar')
   }
 
-  async function submitConflito() {
-    if (!pending) return
-    try {
-      await conflito.mutateAsync({ reservaId: pending.cardId })
-      toast.success('Conflito registrado.')
-      closeModal(); refetch()
-    } catch (e: unknown) {
-      toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro')
-    }
-  }
-
   async function submitConfirmar() {
     if (!pending || !labId) { toast.error('Selecione um laboratório.'); return }
     try {
@@ -246,6 +235,8 @@ function ReservasKanban() {
     setLabId(''); setMotivo('')
     setReagendarDatas([{ dia: '', horaInicio: '', horaFim: '' }])
   }
+
+  const pendingCard = pending ? findCard(pending.cardId) : undefined
 
   if (isLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
@@ -299,16 +290,14 @@ function ReservasKanban() {
         </div>
       </Modal>
 
-      <Modal open={modal === 'conflito'} onClose={closeModal} title="Marcar conflito de datas" size="sm">
-        <div className="px-6 py-4 flex flex-col gap-3">
-          <p className="text-sm text-slate-600">Confirma que há conflito nas datas desta reserva?</p>
-          <p className="text-xs text-slate-400">O solicitante será notificado e poderá propor novas datas.</p>
-          <div className="flex justify-end gap-2">
-            <button className="btn-secondary btn-sm" onClick={closeModal}>Cancelar</button>
-            <button className="btn-primary btn-sm" onClick={submitConflito} disabled={conflito.isPending}>Confirmar conflito</button>
-          </div>
-        </div>
-      </Modal>
+      {/* Marcar conflito — agora permite selecionar datas específicas */}
+      <MarcarConflitoDialog
+        open={modal === 'conflito'}
+        onClose={closeModal}
+        reservaId={pendingCard?.id ?? ''}
+        datas={pendingCard?.datas ?? []}
+        onSucesso={() => { closeModal(); refetch() }}
+      />
 
       <Modal open={modal === 'reagendar'} onClose={closeModal} title="Reagendar após conflito" size="md">
         <div className="px-6 py-4 flex flex-col gap-4">

@@ -1,6 +1,11 @@
 /**
  * Testes do IntegracoesService (CSC + Teams)
- * CORREÇÃO: convertido de Vitest (vi.fn, vi.mock) → Jest (jest.fn, jest.mock)
+ *
+ * REGRA DE NEGÓCIO (refatoração): CSC e Teams só são notificados na CRIAÇÃO
+ * da solicitação de reserva. Os testes de notificarConfirmacao() e
+ * notificarRejeicao() foram REMOVIDOS porque esses métodos não existem mais
+ * — confirmação, rejeição e marcação de conflito não disparam nenhuma ação
+ * externa (nem CSC, nem Teams).
  *
  * Roda com: npx jest src/tests/integracao.service.test.ts
  */
@@ -179,61 +184,15 @@ describe('IntegracoesService.notificarCriacao', () => {
   })
 })
 
-// ─── notificarConfirmacao ─────────────────────────────────────────────────────
+// ─── Garantia de regressão: API pública do serviço ────────────────────────────
 
-describe('IntegracoesService.notificarConfirmacao', () => {
-  beforeEach(() => jest.clearAllMocks())
-
-  it('não notifica Teams para modalidade REMOTO', async () => {
-    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
-      .mockResolvedValue(makeReserva({ modalidadeReserva: 'REMOTO' }))
-
-    await IntegracoesService.notificarConfirmacao('res-1')
-
-    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
-  })
-
-  it('notifica Teams com laboratório confirmado', async () => {
-    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
-      .mockResolvedValue(makeReserva({ laboratorio: { id: 'lab-1', nome: 'Lab 01' } }))
-    ;(prisma.historicoTramitacao.findFirst as jest.Mock).mockResolvedValue({ usuarioId: 'op-1' })
-    ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
-
-    await IntegracoesService.notificarConfirmacao('res-1')
-
-    expect(teamsModule.notificarTeams).toHaveBeenCalledWith(
-      expect.objectContaining({ evento: 'CONFIRMACAO', laboratorio: 'Lab 01' })
-    )
-    expect(prisma.logIntegracao.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ servico: 'TEAMS', statusHttp: 202 }) })
-    )
-  })
-})
-
-// ─── notificarRejeicao ────────────────────────────────────────────────────────
-
-describe('IntegracoesService.notificarRejeicao', () => {
-  beforeEach(() => jest.clearAllMocks())
-
-  it('não notifica para modalidade RAS', async () => {
-    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock)
-      .mockResolvedValue(makeReserva({ modalidadeReserva: 'RAS' }))
-
-    await IntegracoesService.notificarRejeicao('res-1', 'Lab fechado')
-
-    expect(teamsModule.notificarTeams).not.toHaveBeenCalled()
-  })
-
-  it('notifica Teams com motivo de rejeição', async () => {
-    const motivo = 'Laboratório em manutenção'
-    ;(prisma.solicitacaoReserva.findUniqueOrThrow as jest.Mock).mockResolvedValue(makeReserva())
-    ;(prisma.historicoTramitacao.findFirst as jest.Mock).mockResolvedValue({ usuarioId: 'op-1' })
-    ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
-
-    await IntegracoesService.notificarRejeicao('res-1', motivo)
-
-    expect(teamsModule.notificarTeams).toHaveBeenCalledWith(
-      expect.objectContaining({ evento: 'REJEICAO', motivoRejeicao: motivo })
-    )
+describe('IntegracoesService — superfície pública', () => {
+  it('NÃO expõe mais notificarConfirmacao nem notificarRejeicao', () => {
+    // Esses métodos foram removidos por decisão de negócio: confirmação,
+    // rejeição e conflito não devem disparar Teams/CSC. Este teste existe
+    // para que, se alguém os reintroduzir por engano, a suíte falhe e force
+    // uma decisão consciente em vez de uma regressão silenciosa.
+    expect((IntegracoesService as unknown as Record<string, unknown>).notificarConfirmacao).toBeUndefined()
+    expect((IntegracoesService as unknown as Record<string, unknown>).notificarRejeicao).toBeUndefined()
   })
 })

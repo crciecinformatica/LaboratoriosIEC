@@ -130,7 +130,6 @@ model SolicitacaoReserva {
   status         StatusReserva     @default(CRIADA)
   motivoRejeicao String?
   cscProtocolo   String?
-  googleEventId  String?
 
   modalidadeReserva   ModalidadeReserva
   softwaresUtilizados String
@@ -165,6 +164,7 @@ model DataHorarioReserva {
   horaFim    String   // "HH:MM"
   recorrente Boolean  @default(false)
   emConflito Boolean  @default(false)
+  googleEventId String?
 
   reserva SolicitacaoReserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
 

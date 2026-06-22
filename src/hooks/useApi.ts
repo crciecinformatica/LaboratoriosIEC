@@ -207,8 +207,9 @@ export function useRejectReserva() {
 export function useMarcarConflitoReserva() {
   const qc = useQueryClient()
   return useMutation({
-    // Agora recebe apenas reservaId — a rota marca todas as datas da reserva
-    mutationFn: (data: { reservaId: string }) =>
+    // dataHorarioIds é opcional: se informado, marca só essas datas específicas;
+    // se omitido, marca todas as datas da reserva (retrocompatível).
+    mutationFn: (data: { reservaId: string; dataHorarioIds?: string[] }) =>
       axios.post('/api/reservas/conflito', data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
   })
@@ -324,6 +325,7 @@ type PaginatedUsuarios = PaginatedResponse<UsuarioPublico, 'usuarios'>
 type Laboratorio = {
   id: string; nome: string; codigo: string; capacidade: number
   recursos: string[]; localizacao: string | null; ativo: boolean
+  googleCalendarId: string | null
 }
 
 type Professor = {

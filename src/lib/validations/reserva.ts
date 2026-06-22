@@ -140,6 +140,10 @@ export const rejeitarReservaActionSchema = rejeitarReservaSchema.extend({
 
 export const conflitoReservaSchema = z.object({
   reservaId: z.string().cuid('Reserva inválida'),
+  // Opcional: IDs específicos de DataHorarioReserva a marcar como em conflito.
+  // Se omitido ou vazio, mantém o comportamento anterior (marca todas as
+  // datas da reserva) — garante retrocompatibilidade com chamadas antigas.
+  dataHorarioIds: z.array(z.string().cuid()).optional(),
 })
 
 export const corrigirConflitoSchema = z.object({
@@ -161,6 +165,10 @@ export const criarLaboratorioSchema = z.object({
   capacidade: z.number({ error: 'Informe a capacidade' }).int().min(1).max(500),
   recursos:   z.array(z.string()).default([]),
   localizacao:z.string().max(200).optional(),
+  // ID da agenda do Google Calendar correspondente a este laboratório
+  // (ex: "abc123@group.calendar.google.com"). Opcional — laboratórios sem
+  // agenda vinculada simplesmente não geram eventos no Calendar.
+  googleCalendarId: z.string().max(255).optional().or(z.literal('')),
 })
 export const editarLaboratorioSchema = criarLaboratorioSchema.partial()
 

@@ -5,13 +5,11 @@ import {
   notificarTeams,
   TeamsWebhookError,
   TeamsNotificacaoPayload,
-  TipoEvento as TipoEventoTeams,
 } from '@/lib/integrations/teams'
 
 interface Solicitante   { id: string; nome: string; email: string }
 interface ProfessorInfo { id: string; nome: string; email: string; telefone?: string | null; departamento?: string | null }
 interface TurmaInfo     { id: string; codigo: string; nome: string; curso: string; codigoDisciplina: string; semestre: string, numOferta?: string | null }
-interface LaboratorioInfo { id: string; nome: string }
 interface DataHorario   { dia: Date; horaInicio: string; horaFim: string }
 
 interface ReservaComIncludes {
@@ -24,7 +22,6 @@ interface ReservaComIncludes {
   solicitante:         Solicitante
   professor:           ProfessorInfo
   turma:               TurmaInfo
-  laboratorio?:        LaboratorioInfo | null
 }
 
 function sanitizeForJson(value: unknown): Prisma.InputJsonValue {
@@ -35,6 +32,12 @@ function sanitizeForJson(value: unknown): Prisma.InputJsonValue {
   catch { return String(value) }
 }
 
+/**
+ *Os métodos notificarConfirmacao() e notificarRejeicao() que existiam aqui
+ * foram REMOVIDOS. Se uma rota antiga ainda os importar, vai falhar a
+ * compilação — isso é proposital, para forçar a limpeza das chamadas nas
+ * rotas confirmar/rejeitar/conflito (ver routes correspondentes).
+ */
 export class IntegracoesService {
 
   static async notificarCriacao(reservaId: string, operadorId: string): Promise<void> {
@@ -95,54 +98,6 @@ export class IntegracoesService {
       this._montarPayloadTeams(reserva, 'CRIACAO', { cscProtocolo: protocolo }))
   }
 
-  static async notificarConfirmacao(reservaId: string): Promise<void> {
-    const reserva = await prisma.solicitacaoReserva.findUniqueOrThrow({
-      where: { id: reservaId },
-      include: {
-        solicitante: { select: { id: true, nome: true, email: true } },
-        professor:   { select: { id: true, nome: true, email: true, telefone: true, departamento: true } },
-        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true, numOferta: true } },
-        laboratorio: { select: { id: true, nome: true } },
-        datas:       { orderBy: { dia: 'asc' } },
-      },
-    })
-
-    if (reserva.modalidadeReserva !== 'PRESENCIAL') return
-    const operadorId = await this._ultimoOperadorId(reservaId)
-    if (!operadorId) return
-
-    await this._enviarTeams(reservaId, operadorId,
-      this._montarPayloadTeams(reserva, 'CONFIRMACAO', { laboratorio: reserva.laboratorio?.nome }))
-  }
-
-  static async notificarRejeicao(reservaId: string, motivoRejeicao: string): Promise<void> {
-    const reserva = await prisma.solicitacaoReserva.findUniqueOrThrow({
-      where: { id: reservaId },
-      include: {
-        solicitante: { select: { id: true, nome: true, email: true } },
-        professor:   { select: { id: true, nome: true, email: true, telefone: true, departamento: true } },
-        turma:       { select: { id: true, codigo: true, nome: true, curso: true, codigoDisciplina: true, semestre: true, numOferta: true } },
-        datas:       { orderBy: { dia: 'asc' } },
-      },
-    })
-
-    if (reserva.modalidadeReserva !== 'PRESENCIAL') return
-    const operadorId = await this._ultimoOperadorId(reservaId)
-    if (!operadorId) return
-
-    await this._enviarTeams(reservaId, operadorId,
-      this._montarPayloadTeams(reserva, 'REJEICAO', { motivoRejeicao }))
-  }
-
-  private static async _ultimoOperadorId(reservaId: string): Promise<string | undefined> {
-    const h = await prisma.historicoTramitacao.findFirst({
-      where:   { reservaId },
-      select:  { usuarioId: true },
-      orderBy: { criadoEm: 'desc' },
-    })
-    return h?.usuarioId
-  }
-
   private static async _enviarTeams(reservaId: string, usuarioId: string, payload: TeamsNotificacaoPayload) {
     try {
       await notificarTeams(payload)
@@ -199,8 +154,8 @@ export class IntegracoesService {
 
   private static _montarPayloadTeams(
     reserva: ReservaComIncludes,
-    evento: TipoEventoTeams,
-    extras: { cscProtocolo?: string; laboratorio?: string; motivoRejeicao?: string } = {}
+    evento: 'CRIACAO',
+    extras: { cscProtocolo?: string } = {}
   ): TeamsNotificacaoPayload {
     return {
       titulo:       reserva.titulo,
@@ -218,9 +173,7 @@ export class IntegracoesService {
       semestre: reserva.turma.semestre,
       turma: reserva.turma.codigo,
       numOferta: reserva.turma.numOferta,
-      ...(extras.cscProtocolo   && { cscProtocolo:   extras.cscProtocolo }),
-      ...(extras.laboratorio    && { laboratorio:    extras.laboratorio }),
-      ...(extras.motivoRejeicao && { motivoRejeicao: extras.motivoRejeicao }),
+      ...(extras.cscProtocolo && { cscProtocolo: extras.cscProtocolo }),
     }
   }
 }

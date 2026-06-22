@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
-import { IntegracoesService } from '@/services/integracao.service'
 import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { ConflitosService } from '@/services/conflito.service'
 import { confirmarReservaActionSchema } from '@/lib/validations/reserva'
@@ -27,19 +26,6 @@ export async function POST(req: NextRequest) {
 
   try {
     // ─── Transação SERIALIZÁVEL para evitar race condition ──────────────────────
-    //
-    // CORREÇÃO: a detecção de conflito agora recebe `tx` explicitamente, para
-    // rodar na MESMA conexão/snapshot da transação. Antes, ConflitosService
-    // usava o client Prisma global por padrão — isso fazia a verificação correr
-    // fora do isolamento Serializable, competindo pelo pool de conexões com a
-    // própria transação aberta, e em loop (1 query por data). O resultado era
-    // a transação ultrapassar o timeout padrão de 5000ms do Prisma e fechar
-    // antes de chegar no findUniqueOrThrow seguinte — gerando
-    // "Transaction already closed: ... query cannot be executed on an expired
-    // transaction" e o 500 reportado.
-    //
-    // Também aumentamos timeout/maxWait como margem de segurança para
-    // ambientes mais lentos (ex: dev com poucas conexões no pool).
     await prisma.$transaction(
       async (tx) => {
         const datas = await tx.dataHorarioReserva.findMany({
@@ -49,8 +35,6 @@ export async function POST(req: NextRequest) {
 
         if (!datas.length) throw new Error('Reserva sem datas cadastradas')
 
-        // Passa `tx` — a verificação de conflito agora participa da mesma
-        // transação/snapshot, em uma única query (ver conflito.service.ts).
         const resultado = await ConflitosService.detectarConflitos(laboratorioId, datas, reservaId, tx)
 
         if (resultado.temConflito) {
@@ -85,17 +69,17 @@ export async function POST(req: NextRequest) {
       },
       {
         isolationLevel: 'Serializable',
-        // Margem extra de segurança — a lógica em si agora é 1 query rápida,
-        // mas mantemos folga para ambientes com latência maior de banco.
-        timeout: 10_000, // tempo máximo de execução da transação (ms)
-        maxWait: 5_000,  // tempo máximo esperando um slot de conexão livre (ms)
+        timeout: 10_000,
+        maxWait: 5_000,
       }
     )
 
     // ─── Google Calendar (fora da tx) ───────────────────────────────────────────
-    // Chamada de rede externa — propositalmente FORA da transação, para nunca
-    // contar contra o timeout da transação do banco. O calendarId é resolvido
-    // internamente a partir de laboratorio.googleCalendarId.
+    // Mantido: confirmação ainda cria o evento no Calendar. O que foi removido
+    // aqui foi APENAS a notificação Teams/CSC — confirmação não dispara mais
+    // nenhuma ação via Teams ou CSC, por decisão de negócio. CSC e Teams agora
+    // só são acionados em IntegracoesService.notificarCriacao(), no momento em
+    // que o formulário de solicitação é preenchido.
     GoogleCalendarService.criarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {
@@ -105,10 +89,6 @@ export async function POST(req: NextRequest) {
         }
       })
 
-    // ─── Notificação Teams (background) ─────────────────────────────────────────
-    IntegracoesService.notificarConfirmacao(reservaId)
-      .catch((err) => console.error('[Sprint5] Falha notificarConfirmacao:', err))
-
     return NextResponse.json({ ok: true })
 
   } catch (err) {
@@ -116,9 +96,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: 409 })
     }
 
-    // P2034 = write conflict / serialization failure do Postgres — sinaliza
-    // que outra confirmação simultânea venceu a corrida. Resposta 409 é mais
-    // correta que 500 aqui, pois o cliente pode tentar de novo.
     if (isPrismaSerializationError(err)) {
       return NextResponse.json(
         { error: 'Conflito de concorrência: outra operação alterou esta reserva. Tente novamente.' },

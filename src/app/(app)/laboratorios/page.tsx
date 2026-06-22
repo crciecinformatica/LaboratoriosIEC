@@ -13,9 +13,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { criarLaboratorioSchema } from '@/lib/validations/reserva'
 import type { z } from 'zod'
-
 type LaboratorioFormInput = z.input<typeof criarLaboratorioSchema>
-import { Plus, Pencil, Trash2, FlaskConical, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, FlaskConical, Loader2, CalendarCheck2, CalendarX2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Modal } from '@/components/ui/modal'
 import { PageHeader } from '@/components/ui/page-header'
@@ -41,7 +40,7 @@ export default function LaboratoriosPage() {
   const limit = data?.limit ?? 20
 
   const podeEditar = ['OPERADOR_TI', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
-  const colSpan = podeEditar ? 7 : 6
+  const colSpan = podeEditar ? 8 : 7
 
   const atualizar = useUpdateLaboratorio(editing?.id ?? '')
 
@@ -59,7 +58,7 @@ export default function LaboratoriosPage() {
   function openCreate() {
     setEditing(null)
     setRecursosInput('')
-    reset({ recursos: [] })
+    reset({ recursos: [], googleCalendarId: '' })
     setModalOpen(true)
   }
 
@@ -72,6 +71,7 @@ export default function LaboratoriosPage() {
       capacidade: lab.capacidade,
       recursos: lab.recursos,
       localizacao: lab.localizacao ?? undefined,
+      googleCalendarId: lab.googleCalendarId ?? '',
     })
     setModalOpen(true)
   }
@@ -80,11 +80,17 @@ export default function LaboratoriosPage() {
     setModalOpen(false)
     setEditing(null)
     setRecursosInput('')
-    reset({ recursos: [] })
+    reset({ recursos: [], googleCalendarId: '' })
   }
 
   async function onSubmit(formData: LaboratorioFormInput) {
-    const payload = { ...formData, recursos: formData.recursos ?? [] }
+    const payload = {
+      ...formData,
+      recursos: formData.recursos ?? [],
+      // String vazia → undefined, para não gravar "" no banco quando o campo
+      // for deixado em branco (mantém null/undefined em vez de string vazia)
+      googleCalendarId: formData.googleCalendarId?.trim() || undefined,
+    }
     try {
       if (editing) {
         await atualizar.mutateAsync(payload)
@@ -112,7 +118,7 @@ export default function LaboratoriosPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl">
+    <div className="flex flex-col gap-6 max-w-6xl">
       <PageHeader
         title="Laboratórios"
         subtitle="Gerencie os laboratórios disponíveis para reserva."
@@ -141,6 +147,7 @@ export default function LaboratoriosPage() {
                 <th>Capacidade</th>
                 <th>Localização</th>
                 <th>Recursos</th>
+                <th>Google Calendar</th>
                 <th>Status</th>
                 {podeEditar && <th className="text-right">Ações</th>}
               </tr>
@@ -180,6 +187,20 @@ export default function LaboratoriosPage() {
                     </div>
                   </td>
                   <td>
+                    {lab.googleCalendarId ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-50 px-1.5 py-0.5 rounded"
+                        title={lab.googleCalendarId}
+                      >
+                        <CalendarCheck2 className="w-3 h-3" /> Vinculada
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                        <CalendarX2 className="w-3 h-3" /> Sem agenda
+                      </span>
+                    )}
+                  </td>
+                  <td>
                     <span className={`badge ${lab.ativo ? 'badge-green' : 'badge-gray'}`}>
                       {lab.ativo ? 'Ativo' : 'Inativo'}
                     </span>
@@ -216,17 +237,18 @@ export default function LaboratoriosPage() {
         open={modalOpen}
         onClose={closeModal}
         title={editing ? 'Editar laboratório' : 'Novo laboratório'}
+        size="md"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-4 flex flex-col gap-4">
           <div className="form-row">
             <div className="form-group">
               <label className="label">Nome <span className="text-red-500">*</span></label>
-              <input {...register('nome')} className="input" placeholder="Laboratório de Informática 1" />
+              <input {...register('nome')} className="input" placeholder="Prédio 1 - Lab 505" />
               {errors.nome && <p className="error-msg">{errors.nome.message}</p>}
             </div>
             <div className="form-group">
               <label className="label">Código <span className="text-red-500">*</span></label>
-              <input {...register('codigo')} className="input" placeholder="LAB-INFO-01" />
+              <input {...register('codigo')} className="input" placeholder="P1-LAB505" />
               {errors.codigo && <p className="error-msg">{errors.codigo.message}</p>}
             </div>
           </div>
@@ -244,7 +266,7 @@ export default function LaboratoriosPage() {
             </div>
             <div className="form-group">
               <label className="label">Localização</label>
-              <input {...register('localizacao')} className="input" placeholder="Bloco A, Sala 101" />
+              <input {...register('localizacao')} className="input" placeholder="Prédio 1" />
             </div>
           </div>
 
@@ -260,6 +282,23 @@ export default function LaboratoriosPage() {
                 setValue('recursos', val, { shouldValidate: true })
               }}
             />
+          </div>
+
+          <div className="form-group">
+            <label className="label">ID da agenda do Google Calendar</label>
+            <input
+              {...register('googleCalendarId')}
+              className="input font-mono text-xs"
+              placeholder="abc123def456@group.calendar.google.com"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              Opcional. Encontre em Google Calendar → ⋮ na agenda do laboratório
+              → Configurações e compartilhamento → Integrar agenda → ID da agenda.
+              Deixe em branco se este laboratório ainda não tem uma agenda própria
+              — ele não terá eventos criados/atualizados/removidos no Calendar
+              até que esse campo seja preenchido.
+            </p>
+            {errors.googleCalendarId && <p className="error-msg">{errors.googleCalendarId.message}</p>}
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
