@@ -22,7 +22,6 @@ async function getDashboardData(userId: string, perfil: string) {
         professor:   { select: { nome: true } },
         turma:       { select: { codigo: true } },
         laboratorio: { select: { nome: true } },
-        // dia/horaInicio/horaFim agora vêm do array `datas` (DataHorarioReserva)
         datas: { orderBy: { dia: 'asc' } },
       },
       orderBy: { criadoEm: 'desc' },
@@ -38,19 +37,16 @@ const colorMap: Record<string, string> = {
   red: 'badge-red', blue: 'badge-blue',
 }
 
-// Formata uma data ISO/Date → "15/08/2025"
 function formatarDia(dia: Date | string): string {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(dia))
 }
 
-/** Resumo legível das datas da reserva: primeira data + indicação de quantas restam */
 function resumoDatas(datas: { dia: Date | string }[]): string {
   if (datas.length === 0) return '—'
   if (datas.length === 1) return formatarDia(datas[0].dia)
   return `${formatarDia(datas[0].dia)} +${datas.length - 1}`
 }
 
-/** Horário da primeira data (ou '—' se não houver datas) */
 function resumoHorario(datas: { horaInicio: string; horaFim: string }[]): string {
   if (datas.length === 0) return '—'
   const { horaInicio, horaFim } = datas[0]
@@ -64,19 +60,19 @@ export default async function DashboardPage() {
   const data = await getDashboardData(session.user.id, session.user.perfil)
 
   const cards = [
-    { label: 'Total de reservas', value: data.total,       icon: CalendarDays, color: 'text-blue-600',  bg: 'bg-blue-50'  },
-    { label: 'Confirmadas',       value: data.confirmadas,  icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Aguardando',        value: data.aguardando,   icon: Clock,        color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Conflitos',         value: data.conflitos,    icon: FlaskConical, color: 'text-red-600',   bg: 'bg-red-50'   },
+    { label: 'Total de reservas', value: data.total,       icon: CalendarDays, color: 'text-[var(--color-info)]',    bg: 'bg-[var(--color-info-bg)]'    },
+    { label: 'Confirmadas',       value: data.confirmadas,  icon: CheckCircle2, color: 'text-[var(--color-success)]', bg: 'bg-[var(--color-success-bg)]' },
+    { label: 'Aguardando',        value: data.aguardando,   icon: Clock,        color: 'text-[var(--color-warning)]', bg: 'bg-[var(--color-warning-bg)]' },
+    { label: 'Conflitos',         value: data.conflitos,    icon: FlaskConical, color: 'text-[var(--color-danger)]',  bg: 'bg-[var(--color-danger-bg)]'  },
   ]
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">
+        <h1 className="text-xl font-semibold text-foreground">
           Olá, {session.user.name?.split(' ')[0]} 👋
         </h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <p className="text-sm text-muted-foreground mt-0.5">
           Visão geral do sistema de agendamento de laboratórios.
         </p>
       </div>
@@ -90,8 +86,8 @@ export default async function DashboardPage() {
               <div className={`w-9 h-9 rounded-lg ${c.bg} flex items-center justify-center mb-3`}>
                 <Icon className={`w-5 h-5 ${c.color}`} />
               </div>
-              <p className="text-2xl font-bold text-slate-900">{c.value}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{c.label}</p>
+              <p className="text-2xl font-bold text-foreground">{c.value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{c.label}</p>
             </div>
           )
         })}
@@ -102,8 +98,8 @@ export default async function DashboardPage() {
       {/* Reservas recentes */}
       <div className="card">
         <div className="card-header">
-          <h2 className="text-sm font-semibold text-slate-800">Reservas recentes</h2>
-          <Link href="/reservas" className="text-xs text-blue-600 hover:underline">Ver todas</Link>
+          <h2 className="text-sm font-semibold text-foreground">Reservas recentes</h2>
+          <Link href="/reservas" className="text-xs text-[var(--color-info)] hover:underline">Ver todas</Link>
         </div>
         <div className="table-wrapper">
           <table className="table">
@@ -121,7 +117,7 @@ export default async function DashboardPage() {
             <tbody>
               {data.recentes.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-400">
+                  <td colSpan={7} className="text-center py-8 text-muted-foreground">
                     Nenhuma reserva encontrada.
                   </td>
                 </tr>
@@ -130,16 +126,15 @@ export default async function DashboardPage() {
                 <tr key={r.id}>
                   <td>
                     <Link href={`/reservas/${r.id}`}
-                      className="font-medium text-slate-800 hover:text-blue-600 transition">
+                      className="font-medium text-foreground hover:text-[var(--color-info)] transition">
                       {r.titulo}
                     </Link>
                   </td>
-                  <td className="text-slate-600">{r.professor.nome}</td>
-                  <td className="text-slate-600">{r.turma.codigo}</td>
-                  <td className="text-slate-500">{r.laboratorio?.nome ?? '—'}</td>
-                  {/* Usa o array r.datas — nunca r.dia diretamente */}
-                  <td className="text-slate-500 text-xs">{resumoDatas(r.datas)}</td>
-                  <td className="text-slate-500 text-xs">{resumoHorario(r.datas)}</td>
+                  <td>{r.professor.nome}</td>
+                  <td>{r.turma.codigo}</td>
+                  <td className="text-muted-foreground">{r.laboratorio?.nome ?? '—'}</td>
+                  <td className="text-muted-foreground text-xs">{resumoDatas(r.datas)}</td>
+                  <td className="text-muted-foreground text-xs">{resumoHorario(r.datas)}</td>
                   <td>
                     <span className={`badge ${colorMap[statusColor[r.status as StatusReserva]] ?? 'badge-gray'}`}>
                       {statusLabel[r.status as StatusReserva]}

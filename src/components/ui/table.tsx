@@ -20,7 +20,7 @@ interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement>
 
 export function TableHeader({ className, children, ...props }: TableHeaderProps) {
   return (
-    <thead className={`bg-gray-100 border-b ${className || ''}`} {...props}>
+    <thead className={`bg-muted border-b border-border ${className || ''}`} {...props}>
       {children}
     </thead>
   )
@@ -44,7 +44,7 @@ interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
 
 export function TableRow({ className, children, ...props }: TableRowProps) {
   return (
-    <tr className={`border-b hover:bg-gray-50 ${className || ''}`} {...props}>
+    <tr className={`border-b border-border hover:bg-accent/50 ${className || ''}`} {...props}>
       {children}
     </tr>
   )
@@ -56,7 +56,7 @@ interface TableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
 
 export function TableHead({ className, children, ...props }: TableHeadProps) {
   return (
-    <th className={`text-left px-4 py-3 font-semibold text-gray-700 ${className || ''}`} {...props}>
+    <th className={`text-left px-4 py-3 font-semibold text-muted-foreground ${className || ''}`} {...props}>
       {children}
     </th>
   )
@@ -68,7 +68,7 @@ interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
 
 export function TableCell({ className, children, ...props }: TableCellProps) {
   return (
-    <td className={`px-4 py-3 text-gray-700 ${className || ''}`} {...props}>
+    <td className={`px-4 py-3 text-foreground ${className || ''}`} {...props}>
       {children}
     </td>
   )

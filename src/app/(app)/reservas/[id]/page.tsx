@@ -35,7 +35,7 @@ function formatarDia(iso: string | Date): string {
 // ─── Sub-componente: lista de datas da reserva ────────────────────────────────
 
 function ListaDatas({ datas }: { datas: DataHorario[] }) {
-  if (datas.length === 0) return <p className="text-sm text-slate-400">Nenhuma data cadastrada.</p>
+  if (datas.length === 0) return <p className="text-sm text-muted-foreground">Nenhuma data cadastrada.</p>
 
   return (
     <ul className="flex flex-col gap-1.5">
@@ -43,23 +43,29 @@ function ListaDatas({ datas }: { datas: DataHorario[] }) {
         <li
           key={d.id}
           className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
-            d.emConflito ? 'bg-red-50 border border-red-100' : 'bg-slate-50'
+            d.emConflito
+              ? 'bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)]'
+              : 'bg-muted'
           }`}
         >
-          <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${d.emConflito ? 'text-red-500' : 'text-slate-400'}`} />
-          <span className={`font-medium ${d.emConflito ? 'text-red-700' : 'text-slate-700'}`}>
+          <CalendarDays className={`w-3.5 h-3.5 shrink-0 ${
+            d.emConflito ? 'text-[var(--color-danger)]' : 'text-muted-foreground'
+          }`} />
+          <span className={`font-medium ${
+            d.emConflito ? 'text-[var(--color-danger)]' : 'text-foreground'
+          }`}>
             {formatarDia(d.dia)}
           </span>
-          <span className={d.emConflito ? 'text-red-600' : 'text-slate-500'}>
+          <span className={d.emConflito ? 'text-[var(--color-danger)]' : 'text-muted-foreground'}>
             {d.horaInicio} — {d.horaFim}
           </span>
           {d.recorrente && (
-            <span className="ml-auto text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+            <span className="ml-auto text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
               recorrente
             </span>
           )}
           {d.emConflito && (
-            <span className="ml-auto text-[10px] font-medium text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+            <span className="ml-auto text-[10px] font-medium text-[var(--color-danger)] bg-[var(--color-danger-bg)] px-1.5 py-0.5 rounded">
               conflito
             </span>
           )}
@@ -126,7 +132,7 @@ function EditorDatas({
           {value.length > 1 && (
             <button
               type="button"
-              className="btn-ghost btn-sm p-1.5 text-red-400 hover:text-red-600 self-end mb-0.5"
+              className="btn-ghost btn-sm p-1.5 text-[var(--color-danger)] self-end mb-0.5"
               onClick={() => remove(i)}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -160,7 +166,6 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   const [modalConflito,  setModalConflito]  = useState(false)
   const [modalReagendar, setModalReagendar] = useState(false)
 
-  // Array de datas para o formulário de reagendamento/corrigir conflito
   const [novasDatas, setNovasDatas] = useState<DataForm[]>([
     { dia: '', horaInicio: '', horaFim: '' },
   ])
@@ -220,13 +225,13 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
   if (!reserva) {
-    return <div className="text-center py-20 text-slate-400">Reserva não encontrada.</div>
+    return <div className="text-center py-20 text-muted-foreground">Reserva não encontrada.</div>
   }
 
   const podeAgir     = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
@@ -236,7 +241,6 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       ['ADMINISTRADOR', 'APOIO_ACADEMICO'].includes(session?.user.perfil ?? ''))
   const podeAnexar = reserva.solicitante.id === session?.user.id || session?.user.perfil === 'ADMINISTRADOR'
 
-  // Datas em conflito para exibição no card de corrigir
   const datasEmConflito = reserva.datas.filter((d) => d.emConflito)
 
   return (
@@ -247,13 +251,13 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-semibold text-slate-900">{reserva.titulo}</h1>
+            <h1 className="text-xl font-semibold text-foreground">{reserva.titulo}</h1>
             <span className={`badge ${colorMap[statusColor[reserva.status as StatusReserva]] ?? 'badge-gray'}`}>
               {statusLabel[reserva.status as StatusReserva]}
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1">{reserva.turma.nome} — {reserva.turma.curso}</p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">{reserva.turma.nome} — {reserva.turma.curso}</p>
+          <p className="text-xs text-muted-foreground mt-1">
             Criada em {new Date(reserva.criadoEm).toLocaleString('pt-BR')}
           </p>
         </div>
@@ -262,49 +266,48 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Dados */}
         <div className="card p-5 lg:col-span-2 flex flex-col gap-4">
-          <h2 className="text-sm font-semibold text-slate-800">Dados da solicitação</h2>
+          <h2 className="text-sm font-semibold text-foreground">Dados da solicitação</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-            <div><p className="text-xs text-slate-400">Modalidade</p><p className="text-slate-700">{modalidadeLabel[reserva.modalidadeReserva as keyof typeof modalidadeLabel] ?? reserva.modalidadeReserva}</p></div>
-            <div><p className="text-xs text-slate-400">Professor</p><p className="text-slate-700">{reserva.professor.nome}</p></div>
-            <div><p className="text-xs text-slate-400">Cód. pessoa / matrícula</p><p className="text-slate-700">{reserva.professor.matricula ?? '—'}</p></div>
-            <div><p className="text-xs text-slate-400">Telefone prof.</p><p className="text-slate-700">{reserva.professor.telefone ?? '—'}</p></div>
-            <div><p className="text-xs text-slate-400">Curso</p><p className="text-slate-700">{reserva.turma.curso}</p></div>
-            <div><p className="text-xs text-slate-400">Nº oferta / turma</p><p className="text-slate-700">{reserva.turma.numOferta ?? '—'} / {reserva.turma.codigo}</p></div>
-            <div><p className="text-xs text-slate-400">Cód. disciplina</p><p className="text-slate-700">{reserva.turma.codigoDisciplina}</p></div>
-            <div><p className="text-xs text-slate-400">Disciplina</p><p className="text-slate-700">{reserva.turma.nome}</p></div>
-            <div><p className="text-xs text-slate-400">Softwares</p><p className="text-slate-700">{reserva.softwaresUtilizados}</p></div>
-            <div><p className="text-xs text-slate-400">Nº alunos</p><p className="text-slate-700">{reserva.numeroAlunos}</p></div>
-            <div><p className="text-xs text-slate-400">Solicitante</p><p className="text-slate-700">{reserva.solicitante.nome}</p></div>
+            <div><p className="text-xs text-muted-foreground">Modalidade</p><p className="text-foreground">{modalidadeLabel[reserva.modalidadeReserva as keyof typeof modalidadeLabel] ?? reserva.modalidadeReserva}</p></div>
+            <div><p className="text-xs text-muted-foreground">Professor</p><p className="text-foreground">{reserva.professor.nome}</p></div>
+            <div><p className="text-xs text-muted-foreground">Cód. pessoa / matrícula</p><p className="text-foreground">{reserva.professor.matricula ?? '—'}</p></div>
+            <div><p className="text-xs text-muted-foreground">Telefone prof.</p><p className="text-foreground">{reserva.professor.telefone ?? '—'}</p></div>
+            <div><p className="text-xs text-muted-foreground">Curso</p><p className="text-foreground">{reserva.turma.curso}</p></div>
+            <div><p className="text-xs text-muted-foreground">Nº oferta / turma</p><p className="text-foreground">{reserva.turma.numOferta ?? '—'} / {reserva.turma.codigo}</p></div>
+            <div><p className="text-xs text-muted-foreground">Cód. disciplina</p><p className="text-foreground">{reserva.turma.codigoDisciplina}</p></div>
+            <div><p className="text-xs text-muted-foreground">Disciplina</p><p className="text-foreground">{reserva.turma.nome}</p></div>
+            <div><p className="text-xs text-muted-foreground">Softwares</p><p className="text-foreground">{reserva.softwaresUtilizados}</p></div>
+            <div><p className="text-xs text-muted-foreground">Nº alunos</p><p className="text-foreground">{reserva.numeroAlunos}</p></div>
+            <div><p className="text-xs text-muted-foreground">Solicitante</p><p className="text-foreground">{reserva.solicitante.nome}</p></div>
             {reserva.laboratorio && (
-              <div><p className="text-xs text-slate-400">Laboratório</p><p className="text-slate-700">{reserva.laboratorio.nome}</p></div>
+              <div><p className="text-xs text-muted-foreground">Laboratório</p><p className="text-foreground">{reserva.laboratorio.nome}</p></div>
             )}
             {reserva.cscProtocolo && (
               <div>
-                <p className="text-xs text-slate-400">Protocolo CSC</p>
-                <p className="text-slate-700 font-mono">#{reserva.cscProtocolo}</p>
+                <p className="text-xs text-muted-foreground">Protocolo CSC</p>
+                <p className="text-foreground font-mono">#{reserva.cscProtocolo}</p>
               </div>
             )}
           </div>
 
-          {/* Datas — usa o array reserva.datas */}
           <div>
-            <h3 className="text-xs font-medium text-slate-500 mb-2 flex items-center gap-1">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
               <CalendarDays className="w-3.5 h-3.5" /> Datas solicitadas
             </h3>
             <ListaDatas datas={reserva.datas} />
           </div>
 
           {reserva.motivoRejeicao && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-lg">
-              <p className="text-xs font-medium text-red-700">Motivo da rejeição</p>
-              <p className="text-sm text-red-600 mt-0.5">{reserva.motivoRejeicao}</p>
+            <div className="p-3 bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)] rounded-lg">
+              <p className="text-xs font-medium text-[var(--color-danger)]">Motivo da rejeição</p>
+              <p className="text-sm text-[var(--color-danger)] mt-0.5">{reserva.motivoRejeicao}</p>
             </div>
           )}
         </div>
 
         {/* Histórico */}
         <div className="card p-5">
-          <h2 className="text-sm font-semibold text-slate-800 mb-4">Histórico de tramitação</h2>
+          <h2 className="text-sm font-semibold text-foreground mb-4">Histórico de tramitação</h2>
           <HistoricoTimeline historico={reserva.historico} />
         </div>
       </div>
@@ -312,7 +315,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       {/* Anexos */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <Paperclip className="w-4 h-4" /> Anexos
           </h2>
           {podeAnexar && (
@@ -324,16 +327,16 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
           )}
         </div>
         {reserva.anexos.length === 0 ? (
-          <p className="text-sm text-slate-400">Nenhum anexo enviado.</p>
+          <p className="text-sm text-muted-foreground">Nenhum anexo enviado.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {reserva.anexos.map((a) => (
               <li key={a.id}>
                 <a href={a.url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition text-sm text-slate-700">
-                  <FileText className="w-4 h-4 text-slate-400" />
+                  className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg hover:bg-accent transition text-sm text-foreground">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
                   {a.nomeArquivo}
-                  <span className="text-xs text-slate-400 ml-auto">{(a.tamanho / 1024).toFixed(0)} KB</span>
+                  <span className="text-xs text-muted-foreground ml-auto">{(a.tamanho / 1024).toFixed(0)} KB</span>
                 </a>
               </li>
             ))}
@@ -341,17 +344,17 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
-      {/* Corrigir conflito — apoio acadêmico propõe novas datas */}
+      {/* Corrigir conflito */}
       {podeCorrigir && (
         <div className="card p-5 flex flex-col gap-4">
-          <h2 className="text-sm font-semibold text-slate-800">Corrigir horários em conflito</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-sm font-semibold text-foreground">Corrigir horários em conflito</h2>
+          <p className="text-sm text-muted-foreground">
             O operador identificou conflito(s) nas datas abaixo. Informe novas datas e horários para análise.
           </p>
           {datasEmConflito.length > 0 && (
             <div className="flex flex-col gap-1">
               {datasEmConflito.map((d) => (
-                <p key={d.id} className="text-sm px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-red-700">
+                <p key={d.id} className="text-sm px-3 py-2 bg-[var(--color-danger-bg)] border border-[var(--color-danger-border)] rounded-lg text-[var(--color-danger)]">
                   Conflito: {formatarDia(d.dia)}, {d.horaInicio} — {d.horaFim}
                 </p>
               ))}
@@ -372,7 +375,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       {/* Ações do operador */}
       {podeAgir && (
         <div className="card p-5 flex flex-col gap-4">
-          <h2 className="text-sm font-semibold text-slate-800">Ações do operador</h2>
+          <h2 className="text-sm font-semibold text-foreground">Ações do operador</h2>
           <div className="form-row">
             <div className="form-group flex-1">
               <label className="label">Laboratório para confirmação</label>
@@ -406,7 +409,6 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {/* Marcar conflito — agora permite selecionar datas específicas */}
       <MarcarConflitoDialog
         open={modalConflito}
         onClose={() => setModalConflito(false)}
@@ -415,7 +417,6 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         onSucesso={() => setModalConflito(false)}
       />
 
-      {/* Modal reagendar (operador) */}
       <Modal open={modalReagendar} onClose={() => setModalReagendar(false)} title="Reagendar após conflito" size="md">
         <div className="px-6 py-4 flex flex-col gap-4">
           <EditorDatas value={novasDatas} onChange={setNovasDatas} />

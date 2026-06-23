@@ -28,13 +28,13 @@ export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-foreground/30 backdrop-blur-[2px]"
         onClick={onClose}
       />
       {/* Dialog */}
       <div
         className={cn(
-          'relative w-full bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col max-h-[90vh]',
+          'relative w-full bg-card rounded-2xl shadow-xl border border-border flex flex-col max-h-[90vh]',
           sizeMap[size]
         )}
         role="dialog"
@@ -42,8 +42,8 @@ export function Modal({ open, onClose, title, children, size = 'md' }: Props) {
         aria-labelledby="modal-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
-          <h2 id="modal-title" className="text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+          <h2 id="modal-title" className="text-sm font-semibold text-foreground">
             {title}
           </h2>
           <button

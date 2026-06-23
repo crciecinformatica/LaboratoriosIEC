@@ -24,12 +24,12 @@ export function AgendaSemanal() {
   return (
     <div className="card">
       <div className="card-header flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-800">Agenda semanal</h2>
+        <h2 className="text-sm font-semibold text-foreground">Agenda semanal</h2>
         <div className="flex items-center gap-1">
           <button className="btn-ghost btn-sm p-1" onClick={() => setSemanaRef(subWeeks(semanaRef, 1))}>
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-muted-foreground">
             {format(inicio, 'd MMM', { locale: ptBR })} — {format(fim, 'd MMM', { locale: ptBR })}
           </span>
           <button className="btn-ghost btn-sm p-1" onClick={() => setSemanaRef(addWeeks(semanaRef, 1))}>
@@ -38,26 +38,24 @@ export function AgendaSemanal() {
         </div>
       </div>
       <div className="p-4">
-        {isLoading && <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />}
+        {isLoading && <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />}
         {!isLoading && (data?.eventos.length ?? 0) === 0 && (
-          <p className="text-sm text-slate-400 text-center py-6">Nenhum evento nesta semana.</p>
+          <p className="text-sm text-muted-foreground text-center py-6">Nenhum evento nesta semana.</p>
         )}
         <ul className="flex flex-col gap-2">
           {data?.eventos.map((ev) => (
             <li key={ev.id}>
               <Link
                 href={`/reservas/${ev.reservaId}`}
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition"
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition"
               >
                 <div className="text-center min-w-[48px]">
-                  {/* ev.dia substitui ev.dataInicio */}
-                  <p className="text-xs font-bold text-slate-700">{format(new Date(ev.dia), 'dd')}</p>
-                  <p className="text-[10px] text-slate-400">{format(new Date(ev.dia), 'MMM', { locale: ptBR })}</p>
+                  <p className="text-xs font-bold text-foreground">{format(new Date(ev.dia), 'dd')}</p>
+                  <p className="text-[10px] text-muted-foreground">{format(new Date(ev.dia), 'MMM', { locale: ptBR })}</p>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{ev.disciplina}</p>
-                  <p className="text-xs text-slate-500">
-                    {/* horaInicio/horaFim já vêm como "HH:MM" — sem precisar de format() */}
+                  <p className="text-sm font-medium text-foreground truncate">{ev.disciplina}</p>
+                  <p className="text-xs text-muted-foreground">
                     {ev.horaInicio} — {ev.horaFim}
                     {ev.laboratorio ? ` · ${ev.laboratorio.nome}` : ''}
                   </p>

@@ -28,16 +28,19 @@ const COLUNAS: StatusReserva[] = [
   'REJEITADA',
 ]
 
-const colorMap: Record<string, string> = {
-  gray: 'border-slate-200', amber: 'border-amber-200', green: 'border-green-200',
-  red: 'border-red-200', coral: 'border-orange-200',
+// Bordas das colunas por status — usando variáveis semânticas via style inline
+const columnBorderVar: Record<string, string> = {
+  gray:  'var(--border)',
+  amber: 'var(--color-warning-border)',
+  green: 'var(--color-success-border)',
+  red:   'var(--color-danger-border)',
+  coral: 'var(--color-warning-border)',
 }
 
 function formatarDia(iso: string | Date): string {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
 }
 
-/** Retorna um resumo legível do array de datas para exibição compacta no card */
 function resumoDatas(datas: KanbanCard['datas']): string {
   if (datas.length === 0) return '—'
   if (datas.length === 1) return `${formatarDia(datas[0].dia)}, ${datas[0].horaInicio}–${datas[0].horaFim}`
@@ -76,7 +79,7 @@ function EditorDatas({ value, onChange }: { value: DataForm[]; onChange: (d: Dat
           </div>
           {value.length > 1 && (
             <button type="button"
-              className="btn-ghost btn-sm p-1.5 text-red-400 hover:text-red-600 self-end mb-0.5"
+              className="btn-ghost btn-sm p-1.5 text-[var(--color-danger)] self-end mb-0.5"
               onClick={() => remove(i)}>
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -97,20 +100,19 @@ function KanbanCardItem({ card }: { card: KanbanCard }) {
   return (
     <div
       ref={setNodeRef} {...listeners} {...attributes}
-      className={`bg-white rounded-lg border p-3 shadow-sm cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-40' : ''}`}
+      className={`bg-card rounded-lg border border-border p-3 shadow-sm cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-start gap-2">
-        <GripVertical className="w-3.5 h-3.5 text-slate-300 mt-0.5 shrink-0" />
+        <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
           <Link href={`/reservas/${card.id}`}
-            className="text-sm font-medium text-slate-800 hover:text-blue-600 line-clamp-2"
+            className="text-sm font-medium text-foreground hover:text-[var(--color-info)] line-clamp-2"
             onClick={(e) => e.stopPropagation()}>
             {card.titulo}
           </Link>
-          <p className="text-xs text-slate-500 mt-1">{card.professor.nome}</p>
-          <p className="text-xs text-slate-400">{card.turma.codigo}</p>
-          {/* Usa o array datas — nunca card.dia diretamente */}
-          <p className="text-[10px] text-slate-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">{card.professor.nome}</p>
+          <p className="text-xs text-muted-foreground/60">{card.turma.codigo}</p>
+          <p className="text-[10px] text-muted-foreground/60 mt-1">
             {resumoDatas(card.datas)}
           </p>
         </div>
@@ -123,15 +125,22 @@ function KanbanCardItem({ card }: { card: KanbanCard }) {
 
 function KanbanColumn({ status, cards }: { status: StatusReserva; cards: KanbanCard[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
-  const border = colorMap[statusColor[status]] ?? 'border-slate-200'
+  const borderColor = columnBorderVar[statusColor[status]] ?? 'var(--border)'
 
   return (
-    <div className={`flex flex-col min-w-[260px] flex-1 rounded-xl border-2 ${border} ${isOver ? 'bg-blue-50/50' : 'bg-slate-50/50'}`}>
-      <div className="px-3 py-2.5 border-b border-slate-100 flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-700">{statusLabel[status]}</span>
-        <span className="text-xs text-slate-400 bg-white px-1.5 py-0.5 rounded-full border">{cards.length}</span>
+    <div
+      ref={setNodeRef}
+      className="flex flex-col min-w-[260px] flex-1 rounded-xl border-2"
+      style={{
+        borderColor,
+        background: isOver ? 'var(--accent)' : 'var(--muted)',
+      }}
+    >
+      <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
+        <span className="text-xs font-semibold text-foreground">{statusLabel[status]}</span>
+        <span className="text-xs text-muted-foreground bg-card px-1.5 py-0.5 rounded-full border border-border">{cards.length}</span>
       </div>
-      <div ref={setNodeRef} className="flex flex-col gap-2 p-2 min-h-[200px] flex-1">
+      <div className="flex flex-col gap-2 p-2 flex-1">
         {cards.map((card) => (
           <KanbanCardItem key={card.id} card={card} />
         ))}
@@ -155,7 +164,6 @@ function ReservasKanban() {
   const [pending, setPending] = useState<{ cardId: string; targetStatus: StatusReserva } | null>(null)
   const [labId,  setLabId]  = useState('')
   const [motivo, setMotivo] = useState('')
-  // Array de datas para o modal de reagendamento
   const [reagendarDatas, setReagendarDatas] = useState<DataForm[]>([
     { dia: '', horaInicio: '', horaFim: '' },
   ])
@@ -239,7 +247,7 @@ function ReservasKanban() {
   const pendingCard = pending ? findCard(pending.cardId) : undefined
 
   if (isLoading) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
+    return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
   }
 
   const colunas = data?.colunas ?? COLUNAS.map((s) => ({ status: s, reservas: [] }))
@@ -255,8 +263,8 @@ function ReservasKanban() {
         </div>
         <DragOverlay>
           {activeCard && (
-            <div className="bg-white rounded-lg border p-3 shadow-lg w-[240px] opacity-90">
-              <p className="text-sm font-medium">{activeCard.titulo}</p>
+            <div className="bg-card rounded-lg border border-border p-3 shadow-lg w-[240px] opacity-90">
+              <p className="text-sm font-medium text-foreground">{activeCard.titulo}</p>
             </div>
           )}
         </DragOverlay>
@@ -264,7 +272,7 @@ function ReservasKanban() {
 
       <Modal open={modal === 'confirmar'} onClose={closeModal} title="Confirmar reserva" size="sm">
         <div className="px-6 py-4 flex flex-col gap-3">
-          <p className="text-sm text-slate-600">Selecione o laboratório para vincular à reserva.</p>
+          <p className="text-sm text-muted-foreground">Selecione o laboratório para vincular à reserva.</p>
           <select className="input" value={labId} onChange={(e) => setLabId(e.target.value)}>
             <option value="">Selecione o laboratório</option>
             {laboratorios.map((l) => (
@@ -290,7 +298,6 @@ function ReservasKanban() {
         </div>
       </Modal>
 
-      {/* Marcar conflito — agora permite selecionar datas específicas */}
       <MarcarConflitoDialog
         open={modal === 'conflito'}
         onClose={closeModal}
@@ -316,8 +323,8 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-slate-900">Kanban de reservas</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Arraste os cartões para alterar o status da reserva.</p>
+        <h1 className="text-xl font-semibold text-foreground">Kanban de reservas</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Arraste os cartões para alterar o status da reserva.</p>
       </div>
       <ReservasKanban />
     </div>

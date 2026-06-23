@@ -24,19 +24,16 @@ const colorMap: Record<string, string> = {
   red: 'badge-red', coral: 'badge-coral', blue: 'badge-blue',
 }
 
-/** Formata uma data ISO como dd/mm/aaaa em pt-BR */
 function formatarDia(iso: string): string {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
 }
 
-/** Retorna um resumo legível do intervalo de datas da reserva */
 function resumoDatas(datas: { dia: string; horaInicio: string; horaFim: string }[]): string {
   if (datas.length === 0) return '—'
   if (datas.length === 1) return formatarDia(datas[0].dia)
   return `${formatarDia(datas[0].dia)} + ${datas.length - 1} data${datas.length - 1 > 1 ? 's' : ''}`
 }
 
-/** Retorna o horário da primeira data (ou '—') */
 function resumoHorario(datas: { horaInicio: string; horaFim: string }[]): string {
   if (datas.length === 0) return '—'
   const { horaInicio, horaFim } = datas[0]
@@ -75,8 +72,8 @@ export default function ReservasPage() {
             key={f.value}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
               status === f.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-card border border-border text-muted-foreground hover:bg-muted'
             }`}
             onClick={() => { setStatus(f.value); setPage(1) }}
           >
@@ -103,7 +100,7 @@ export default function ReservasPage() {
               {isLoading && (
                 <tr>
                   <td colSpan={7} className="text-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               )}
@@ -114,29 +111,28 @@ export default function ReservasPage() {
                 <tr key={r.id}>
                   <td>
                     <Link href={`/reservas/${r.id}`} className="flex items-center gap-2 group">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                        <CalendarDays className="w-3.5 h-3.5 text-blue-600" />
+                      <div className="w-7 h-7 rounded-lg bg-[var(--color-info-bg)] flex items-center justify-center shrink-0">
+                        <CalendarDays className="w-3.5 h-3.5 text-[var(--color-info)]" />
                       </div>
-                      <span className="font-medium text-slate-800 group-hover:text-blue-600 transition">
+                      <span className="font-medium text-foreground group-hover:text-[var(--color-info)] transition">
                         {r.titulo}
                       </span>
                     </Link>
                   </td>
-                  <td className="text-slate-600">{r.professor.nome}</td>
+                  <td>{r.professor.nome}</td>
                   <td>
-                    <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                       {r.turma.codigo}
                     </code>
                   </td>
-                  {/* Usa o array r.datas — nunca r.dia diretamente */}
-                  <td className="text-slate-500 text-xs">{resumoDatas(r.datas)}</td>
-                  <td className="text-slate-500 text-xs">{resumoHorario(r.datas)}</td>
+                  <td className="text-muted-foreground text-xs">{resumoDatas(r.datas)}</td>
+                  <td className="text-muted-foreground text-xs">{resumoHorario(r.datas)}</td>
                   <td>
                     <span className={`badge ${colorMap[statusColor[r.status as StatusReserva]] ?? 'badge-gray'}`}>
                       {statusLabel[r.status as StatusReserva]}
                     </span>
                   </td>
-                  <td className="text-slate-500">{r.laboratorio?.nome ?? '—'}</td>
+                  <td className="text-muted-foreground">{r.laboratorio?.nome ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

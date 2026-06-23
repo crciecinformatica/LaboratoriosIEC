@@ -16,8 +16,8 @@ export function Pagination({ page, limit, total, onPageChange }: PaginationProps
   const to = Math.min(page * limit, total)
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-      <p className="text-xs text-slate-500">
+    <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+      <p className="text-xs text-muted-foreground">
         {from}–{to} de {total}
       </p>
       <div className="flex items-center gap-1">
@@ -29,7 +29,7 @@ export function Pagination({ page, limit, total, onPageChange }: PaginationProps
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <span className="text-xs text-slate-600 px-2">
+        <span className="text-xs text-muted-foreground px-2">
           {page} / {totalPages}
         </span>
         <button

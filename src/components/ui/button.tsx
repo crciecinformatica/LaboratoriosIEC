@@ -14,13 +14,13 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors'
-  
+  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all'
+
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:bg-gray-300',
-    danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400',
-    ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 disabled:bg-transparent disabled:text-gray-400',
+    primary:   'bg-primary text-primary-foreground hover:brightness-90 disabled:opacity-50',
+    secondary: 'bg-card text-foreground border border-border hover:bg-muted disabled:opacity-50',
+    danger:    'bg-destructive text-white hover:brightness-90 disabled:opacity-50',
+    ghost:     'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50',
   }
 
   const sizes = {
