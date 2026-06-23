@@ -14,7 +14,7 @@ function horaParaMin(h: string) {
 export const professorManualSchema = z.object({
   nome:         z.string().min(3, 'Nome do professor obrigatório').max(100),
   email:        z.string().email('Email inválido'),
-  matricula:    z.string().max(20).optional(),
+  matricula:    z.string().min(1, 'Código de pessoa / matrícula obrigatório').max(20),
   telefone:     z.string().max(20).optional(),
   departamento: z.string().max(100).optional(),
 })

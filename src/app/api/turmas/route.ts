@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
       ? [
           { nome: { contains: search, mode: 'insensitive' as const } },
           { codigo: { contains: search, mode: 'insensitive' as const } },
+          { codigoDisciplina: { contains: search, mode: 'insensitive' as const } },
         ]
       : undefined,
   }

@@ -5,7 +5,7 @@ const DEFAULT_LIMIT = 20
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 
-export function useGet<T>(key: string[], url: string, params?: Record<string, string>) {
+export function useGet<T>(key: unknown[], url: string, params?: Record<string, string>) {
   return useQuery<T>({
     queryKey: [...key, params],
     queryFn: async () => {

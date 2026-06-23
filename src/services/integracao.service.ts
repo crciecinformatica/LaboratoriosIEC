@@ -25,7 +25,7 @@ interface ReservaComIncludes {
 }
 
 function sanitizeForJson(value: unknown): Prisma.InputJsonValue {
-  if (value === null || value === undefined) return Prisma.JsonNull
+  if (value === null || value === undefined) return Prisma.JsonNull as unknown as Prisma.InputJsonValue
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
   if (Array.isArray(value)) return value.map(sanitizeForJson) as Prisma.InputJsonValue[]
   try { return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue }
@@ -172,7 +172,7 @@ export class IntegracoesService {
       codigoDisciplina: reserva.turma.codigoDisciplina,
       semestre: reserva.turma.semestre,
       turma: reserva.turma.codigo,
-      numOferta: reserva.turma.numOferta,
+      numOferta: reserva.turma.numOferta ?? undefined,
       ...(extras.cscProtocolo && { cscProtocolo: extras.cscProtocolo }),
     }
   }

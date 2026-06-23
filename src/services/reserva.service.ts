@@ -210,8 +210,11 @@ export class ReservaService {
   private static async _resolverProfessor(tx: Tx, input: CriarReservaInput): Promise<string> {
     if (input.professorId) return input.professorId
     if (!input.professorManual) throw new Error('Professor obrigatório')
-    const existe = await tx.professor.findUnique({ where: { email: input.professorManual.email } })
-    if (existe) return existe.id
+    const matricula = input.professorManual.matricula?.trim()
+    if (matricula) {
+      const existe = await tx.professor.findUnique({ where: { matricula } })
+      if (existe) throw new Error('Professor já cadastrado no sistema')
+    }
     const prof = await tx.professor.create({ data: { ...input.professorManual } })
     return prof.id
   }
@@ -219,8 +222,11 @@ export class ReservaService {
   private static async _resolverTurma(tx: Tx, input: CriarReservaInput, professorId: string): Promise<string> {
     if (input.turmaId) return input.turmaId
     if (!input.turmaManual) throw new Error('Turma obrigatória')
-    const existe = await tx.turma.findUnique({ where: { codigo: input.turmaManual.codigo } })
-    if (existe) return existe.id
+    const existe = await tx.turma.findFirst({
+      where: { codigoDisciplina: input.turmaManual.codigoDisciplina },
+      select: { id: true },
+    })
+    if (existe) throw new Error('Turma já cadastrada no sistema')
     const turma = await tx.turma.create({ data: { ...input.turmaManual, professorId } })
     return turma.id
   }

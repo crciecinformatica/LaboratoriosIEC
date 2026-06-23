@@ -9,6 +9,7 @@ import {
   Columns3, CalendarRange, Webhook,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ModeToggle } from './../../dashboard/mode-toggle';
 
 type NavItem = {
   label: string
@@ -76,7 +77,7 @@ export function Sidebar({ perfil }: { perfil: Perfil }) {
       </nav>
 
       {/* Rodapé */}
-      <div className="px-3 py-3 border-t border-slate-100">
+      <div className="flex justify-evenly   px-3 py-3 border-t border-slate-100">
         <Link
           href="/configuracoes"
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
@@ -84,6 +85,7 @@ export function Sidebar({ perfil }: { perfil: Perfil }) {
           <Settings className="w-4 h-4" />
           Configurações
         </Link>
+        <ModeToggle />
       </div>
     </aside>
   )

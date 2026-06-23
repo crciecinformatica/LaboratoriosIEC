@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import axios from 'axios'
 import { criarReservaFormSchema } from '@/lib/validations/reserva'
 import type { z } from 'zod'
 import { useProfessores, useTurmas, useCreateReserva } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
 import {
   ChevronLeft, ChevronRight, Loader2,
-  Upload, FileText, Trash2, Plus,
+  Upload, FileText, Trash2, Plus, Search,
 } from 'lucide-react'
 
 type FormInput = z.input<typeof criarReservaFormSchema>
@@ -23,6 +24,84 @@ const MODALIDADES = [
   { value: 'RAS',        label: 'RAS'        },
 ] as const
 
+type SearchableSelectOption = {
+  value: string
+  label: string
+  description?: string
+}
+
+function SearchableSelect({
+  value,
+  search,
+  options,
+  placeholder,
+  emptyMessage,
+  disabled,
+  onSearchChange,
+  onSelect,
+}: {
+  value: string
+  search: string
+  options: SearchableSelectOption[]
+  placeholder: string
+  emptyMessage: string
+  disabled?: boolean
+  onSearchChange: (value: string) => void
+  onSelect: (option: SearchableSelectOption) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+      <input
+        type="text"
+        className="input pl-9 pr-9"
+        value={search}
+        disabled={disabled}
+        placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 100)}
+        onChange={(e) => {
+          onSearchChange(e.target.value)
+          setOpen(true)
+        }}
+      />
+      <ChevronRight className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 transition ${open ? 'rotate-90' : ''}`} />
+
+      {open && !disabled && (
+        <div
+          className="absolute z-20 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {options.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-400">{emptyMessage}</div>
+          ) : (
+            options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 transition ${
+                  value === option.value ? 'bg-blue-50 text-blue-700' : 'text-slate-700'
+                }`}
+                onClick={() => {
+                  onSelect(option)
+                  setOpen(false)
+                }}
+              >
+                <span className="block font-medium truncate">{option.label}</span>
+                {option.description && (
+                  <span className="block text-xs text-slate-400 truncate">{option.description}</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ReservaMultistepForm() {
   const router  = useRouter()
   const toast   = useToast()
@@ -30,8 +109,10 @@ export function ReservaMultistepForm() {
   const [files, setFiles]             = useState<File[]>([])
   const [profManual, setProfManual]   = useState(false)
   const [turmaManual, setTurmaManual] = useState(false)
+  const [profSearch, setProfSearch]   = useState('')
+  const [turmaSearch, setTurmaSearch] = useState('')
 
-  const { data: profData } = useProfessores('', 1, 100)
+  const { data: profData } = useProfessores(profSearch, 1, 50)
   const criar      = useCreateReserva()
   const professores = profData?.professores ?? []
 
@@ -69,10 +150,21 @@ export function ReservaMultistepForm() {
   const { errors } = form.formState
 
   // Filtrar turmas pelo professor selecionado
-  const professorIdWatch = form.watch('professorId')
+  const professorIdWatch = useWatch({ control: form.control, name: 'professorId' })
+  const turmaIdWatch = useWatch({ control: form.control, name: 'turmaId' })
   const professorId = profManual ? '' : (professorIdWatch ?? '')
-  const { data: turmaData } = useTurmas('', professorId, 1, 100)
+  const { data: turmaData } = useTurmas(turmaSearch, professorId, 1, 50)
   const turmas = turmaData?.turmas ?? []
+  const professorOptions = professores.map((p) => ({
+    value: p.id,
+    label: p.nome,
+    description: p.matricula ? `Cód. pessoa / matrícula: ${p.matricula}` : p.email,
+  }))
+  const turmaOptions = turmas.map((t) => ({
+    value: t.id,
+    label: `${t.codigo} — ${t.nome}`,
+    description: `${t.curso} | Cód. disciplina: ${t.codigoDisciplina}`,
+  }))
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -80,6 +172,7 @@ export function ReservaMultistepForm() {
     setProfManual(enabled)
     if (enabled) {
       form.setValue('professorId', '')
+      setProfSearch('')
       form.setValue('professorManual', { nome: '', email: '', matricula: '', telefone: '' })
     } else {
       form.setValue('professorManual', undefined)
@@ -90,6 +183,7 @@ export function ReservaMultistepForm() {
     setTurmaManual(enabled)
     if (enabled) {
       form.setValue('turmaId', '')
+      setTurmaSearch('')
       form.setValue('turmaManual', {
         codigo: '', nome: '', semestre: '', curso: '', numOferta: '', codigoDisciplina: '',
       })
@@ -101,6 +195,7 @@ export function ReservaMultistepForm() {
   function onProfessorSelect(id: string) {
     form.setValue('professorId', id)
     form.setValue('turmaId', '')
+    setTurmaSearch('')
     const prof = professores.find((p) => p.id === id)
     if (prof && !form.getValues('titulo')) {
       form.setValue('titulo', `Reserva — ${prof.nome}`)
@@ -180,16 +275,11 @@ export function ReservaMultistepForm() {
         try {
           const fd = new FormData()
           fd.append('file', file)
-          const res = await fetch(`/api/reservas/${reserva.id}/anexos`, {
-            method: 'POST',
-            body: fd,
+          await axios.post(`/api/reservas/${reserva.id}/anexos`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
           })
-          if (!res.ok) {
-            const body = await res.json().catch(() => ({}))
-            console.error(`[Anexo] Falha ${file.name}:`, body)
-            anexoErros++
-          }
-        } catch {
+        } catch (err) {
+          console.error(`[Anexo] Falha ${file.name}:`, err)
           anexoErros++
         }
       }
@@ -205,6 +295,14 @@ export function ReservaMultistepForm() {
       const msg =
         (e as { response?: { data?: { error?: string } } })?.response?.data?.error ??
         'Erro ao criar solicitação'
+      if (msg === 'Professor já cadastrado no sistema') {
+        form.setError('professorManual.matricula', { type: 'validate', message: msg })
+        setStep(0)
+      }
+      if (msg === 'Turma já cadastrada no sistema') {
+        form.setError('turmaManual.codigoDisciplina', { type: 'validate', message: msg })
+        setStep(1)
+      }
       toast.error(msg)
     }
   }
@@ -252,15 +350,18 @@ export function ReservaMultistepForm() {
             {!profManual ? (
               <div className="form-group">
                 <label className="label">Professor <span className="text-red-500">*</span></label>
-                <select className="input" value={form.watch('professorId')}
-                  onChange={(e) => onProfessorSelect(e.target.value)}>
-                  <option value="">Selecione</option>
-                  {professores.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome}{p.matricula ? ` (${p.matricula})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={professorIdWatch ?? ''}
+                  search={profSearch}
+                  options={professorOptions}
+                  placeholder="Pesquisar por nome ou código de pessoa"
+                  emptyMessage="Nenhum professor encontrado"
+                  onSearchChange={setProfSearch}
+                  onSelect={(option) => {
+                    setProfSearch(option.label)
+                    onProfessorSelect(option.value)
+                  }}
+                />
                 {errors.professorId && <p className="error-msg">{errors.professorId.message}</p>}
               </div>
             ) : (
@@ -279,6 +380,7 @@ export function ReservaMultistepForm() {
                   <div className="form-group">
                     <label className="label">Cód. pessoa / matrícula</label>
                     <input {...form.register('professorManual.matricula')} className="input" />
+                    {errors.professorManual?.matricula && <p className="error-msg">{errors.professorManual.matricula.message}</p>}
                   </div>
                   <div className="form-group">
                     <label className="label">Telefone</label>
@@ -308,14 +410,18 @@ export function ReservaMultistepForm() {
             {!turmaManual ? (
               <div className="form-group">
                 <label className="label">Turma <span className="text-red-500">*</span></label>
-                <select className="input" value={form.watch('turmaId')}
-                  disabled={!profManual && !professorId}
-                  onChange={(e) => onTurmaSelect(e.target.value)}>
-                  <option value="">Selecione</option>
-                  {turmas.map((t) => (
-                    <option key={t.id} value={t.id}>{t.codigo} — {t.nome} ({t.curso})</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={turmaIdWatch ?? ''}
+                  search={turmaSearch}
+                  options={turmaOptions}
+                  placeholder="Pesquisar por nome da disciplina ou código de disciplina"
+                  emptyMessage="Nenhuma turma encontrada"
+                  onSearchChange={setTurmaSearch}
+                  onSelect={(option) => {
+                    setTurmaSearch(option.label)
+                    onTurmaSelect(option.value)
+                  }}
+                />
                 {errors.turmaId && <p className="error-msg">{errors.turmaId.message}</p>}
                 <p className="text-xs text-slate-400 mt-1">Curso, oferta e disciplina são lidos do cadastro da turma.</p>
               </div>
@@ -468,17 +574,6 @@ export function ReservaMultistepForm() {
                     />
                   </div>
                 </div>
-
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    {...form.register(`datas.${index}.recorrente`)}
-                  />
-
-                  <span className="text-sm">
-                    Aula recorrente
-                  </span>
-                </label>
               </div>
             ))}
 

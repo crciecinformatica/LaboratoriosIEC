@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       ? [
           { nome: { contains: search, mode: 'insensitive' as const } },
           { email: { contains: search, mode: 'insensitive' as const } },
+          { matricula: { contains: search, mode: 'insensitive' as const } },
         ]
       : undefined,
   }

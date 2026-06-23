@@ -12,9 +12,27 @@ export interface GoogleCalendarEventInput {
   colorId?: string
 }
 
+type LegacyGoogleCalendarEventInput = Omit<GoogleCalendarEventInput, 'dia' | 'horaInicio' | 'horaFim'> & {
+  datas: { dia: Date; horaInicio: string; horaFim: string }[]
+}
+
 export interface GoogleCalendarEventResult {
   eventId:   string
   htmlLink?: string
+}
+
+function defaultCalendarId(): string {
+  return process.env.GOOGLE_CALENDAR_ID ?? 'primary'
+}
+
+function normalizeInput(input: GoogleCalendarEventInput | LegacyGoogleCalendarEventInput): GoogleCalendarEventInput {
+  if ('datas' in input) {
+    const [primeiraData] = input.datas
+    if (!primeiraData) throw new Error('Nenhuma data fornecida')
+    const { datas: _datas, ...rest } = input
+    return { ...rest, ...primeiraData }
+  }
+  return input
 }
 
 function calendarApi() {
@@ -72,10 +90,14 @@ function buildEventBody(input: GoogleCalendarEventInput) {
  * Para reservas com múltiplas datas, chame esta função uma vez por data
  * (ver GoogleCalendarService, que orquestra a criação em lote).
  */
+export async function criarEvento(input: LegacyGoogleCalendarEventInput): Promise<GoogleCalendarEventResult>
+export async function criarEvento(calendarId: string, input: GoogleCalendarEventInput): Promise<GoogleCalendarEventResult>
 export async function criarEvento(
-  calendarId: string,
-  input: GoogleCalendarEventInput
+  calendarIdOrInput: string | GoogleCalendarEventInput | LegacyGoogleCalendarEventInput,
+  maybeInput?: GoogleCalendarEventInput
 ): Promise<GoogleCalendarEventResult> {
+  const calendarId = typeof calendarIdOrInput === 'string' ? calendarIdOrInput : defaultCalendarId()
+  const input = normalizeInput(typeof calendarIdOrInput === 'string' ? maybeInput! : calendarIdOrInput)
   if (!calendarId) throw new Error('calendarId não informado — laboratório sem googleCalendarId configurado.')
 
   const body = buildEventBody(input)
@@ -94,11 +116,16 @@ export async function criarEvento(
 /**
  * Atualiza o evento de UMA data específica. 404 → recria.
  */
+export async function atualizarEvento(eventId: string, input: LegacyGoogleCalendarEventInput): Promise<GoogleCalendarEventResult>
+export async function atualizarEvento(calendarId: string, eventId: string, input: GoogleCalendarEventInput): Promise<GoogleCalendarEventResult>
 export async function atualizarEvento(
-  calendarId: string,
-  eventId:    string,
-  input:      GoogleCalendarEventInput
+  calendarIdOrEventId: string,
+  eventIdOrInput: string | GoogleCalendarEventInput | LegacyGoogleCalendarEventInput,
+  maybeInput?: GoogleCalendarEventInput
 ): Promise<GoogleCalendarEventResult> {
+  const calendarId = typeof eventIdOrInput === 'string' ? calendarIdOrEventId : defaultCalendarId()
+  const eventId = typeof eventIdOrInput === 'string' ? eventIdOrInput : calendarIdOrEventId
+  const input = normalizeInput(typeof eventIdOrInput === 'string' ? maybeInput! : eventIdOrInput)
   if (!calendarId) throw new Error('calendarId não informado — laboratório sem googleCalendarId configurado.')
 
   const body = buildEventBody(input)
@@ -119,7 +146,11 @@ export async function atualizarEvento(
 /**
  * Remove o evento de UMA data específica. 404 é ignorado.
  */
-export async function deletarEvento(calendarId: string, eventId: string): Promise<void> {
+export async function deletarEvento(eventId: string): Promise<void>
+export async function deletarEvento(calendarId: string, eventId: string): Promise<void>
+export async function deletarEvento(calendarIdOrEventId: string, maybeEventId?: string): Promise<void> {
+  const calendarId = maybeEventId ? calendarIdOrEventId : defaultCalendarId()
+  const eventId = maybeEventId ?? calendarIdOrEventId
   if (!calendarId) throw new Error('calendarId não informado — laboratório sem googleCalendarId configurado.')
 
   try {
@@ -137,10 +168,14 @@ export async function deletarEvento(calendarId: string, eventId: string): Promis
 /**
  * Busca horários ocupados em UMA agenda (um laboratório) para um dia específico.
  */
+export async function buscarHorariosOcupados(dia: Date): Promise<{ start: string; end: string }[]>
+export async function buscarHorariosOcupados(calendarId: string, dia: Date): Promise<{ start: string; end: string }[]>
 export async function buscarHorariosOcupados(
-  calendarId: string,
-  dia: Date
+  calendarIdOrDia: string | Date,
+  maybeDia?: Date
 ): Promise<{ start: string; end: string }[]> {
+  const calendarId = typeof calendarIdOrDia === 'string' ? calendarIdOrDia : defaultCalendarId()
+  const dia = typeof calendarIdOrDia === 'string' ? maybeDia! : calendarIdOrDia
   if (!calendarId) return []
 
   const dateStr = formatDateInCalendarTimeZone(dia)

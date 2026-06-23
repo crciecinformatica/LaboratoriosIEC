@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(reserva, { status: 201 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao criar reserva'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    const status = ['Professor já cadastrado no sistema', 'Turma já cadastrada no sistema'].includes(msg)
+      ? 422
+      : 500
+    return NextResponse.json({ error: msg }, { status })
   }
 }
 

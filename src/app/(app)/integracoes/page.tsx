@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { Fragment } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { useLogsIntegracao } from '@/hooks/useApi'
-import { LogIntegracao } from '@/hooks/useApi'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -96,7 +96,7 @@ export default function IntegracoesPage() {
               </TableHeader>
               <TableBody>
                 {logs.map((log) => (
-                  <>
+                  <Fragment key={log.id}>
                     <TableRow key={log.id} className="hover:bg-slate-50 cursor-pointer">
                       <TableCell>
                         <Badge variant={log.servico === 'CSC' ? 'secondary' : 'default'}>
@@ -109,7 +109,7 @@ export default function IntegracoesPage() {
                       <TableCell>
                         {log.statusHttp ? (
                           <Badge
-                            variant={log.statusHttp >= 200 && log.statusHttp < 300 ? 'default' : 'destructive'}
+                            variant={log.statusHttp >= 200 && log.statusHttp < 300 ? 'default' : 'error'}
                           >
                             {log.statusHttp}
                           </Badge>
@@ -146,7 +146,7 @@ export default function IntegracoesPage() {
                       <TableRow className="bg-slate-50 border-t-0">
                         <TableCell colSpan={6} className="p-4">
                           <div className="space-y-4 text-sm">
-                            {log.payload && (
+                            {log.payload != null && (
                               <div>
                                 <h4 className="font-semibold text-slate-900 mb-2">Payload:</h4>
                                 <pre className="bg-slate-900 text-slate-100 p-3 rounded overflow-auto max-h-64 text-xs">
@@ -155,7 +155,7 @@ export default function IntegracoesPage() {
                               </div>
                             )}
 
-                            {log.resposta && (
+                            {log.resposta != null && (
                               <div>
                                 <h4 className="font-semibold text-slate-900 mb-2">Resposta:</h4>
                                 <pre className="bg-slate-900 text-slate-100 p-3 rounded overflow-auto max-h-64 text-xs">
@@ -176,7 +176,7 @@ export default function IntegracoesPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -193,7 +193,7 @@ export default function IntegracoesPage() {
               <Button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                variant="outline"
+                variant="secondary"
                 size="sm"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -201,7 +201,7 @@ export default function IntegracoesPage() {
               <Button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                variant="outline"
+                variant="secondary"
                 size="sm"
               >
                 <ChevronRight className="w-4 h-4" />

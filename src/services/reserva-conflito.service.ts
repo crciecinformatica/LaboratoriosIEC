@@ -134,7 +134,7 @@ export class ConflitosService {
     })
 
     // 2. Busca eventos diretamente no Google Calendar (eventos externos ao sistema)
-    const eventosCalendar = await GoogleCalendarService.buscarOcupados(dia)
+    const eventosCalendar = await GoogleCalendarService.buscarOcupados(laboratorioId, dia)
 
     // 3. Mescla e ordena todos os intervalos ocupados
     const todosOcupados = [

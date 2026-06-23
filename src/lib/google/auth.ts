@@ -1,14 +1,15 @@
 import { google } from 'googleapis'
-import type { OAuth2Client } from 'google-auth-library'
 
-let _client: OAuth2Client | null = null
+type GoogleOAuth2Client = InstanceType<typeof google.auth.OAuth2>
+
+let _client: GoogleOAuth2Client | null = null
 
 /**
  * Um único OAuth2Client autentica TODAS as agendas (uma por laboratório),
  * desde que a conta autenticada tenha acesso de "Fazer alterações e gerenciar
  * compartilhamento" em cada agenda (ver passo a passo no README).
  */
-export function getGoogleAuthClient(): OAuth2Client {
+export function getGoogleAuthClient(): GoogleOAuth2Client {
   if (_client) return _client
 
   const clientId     = process.env.GOOGLE_CLIENT_ID
@@ -22,8 +23,9 @@ export function getGoogleAuthClient(): OAuth2Client {
     )
   }
 
-  _client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
-  _client.setCredentials({ refresh_token: refreshToken })
+  const client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
+  client.setCredentials({ refresh_token: refreshToken })
+  _client = client
 
   return _client
 }
