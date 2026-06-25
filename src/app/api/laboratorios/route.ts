@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { criarLaboratorioSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -50,19 +51,23 @@ export async function POST(req: NextRequest) {
   const parse = criarLaboratorioSchema.safeParse(body)
 
   if (!parse.success) {
-    return NextResponse.json(
-      { error: 'Dados inválidos', detalhes: parse.error.flatten() },
-      { status: 422 }
-    )
+    return NextResponse.json({ error: 'Dados inválidos', detalhes: parse.error.flatten() }, { status: 422 })
   }
 
-  const existe = await prisma.laboratorio.findUnique({
-    where: { codigo: parse.data.codigo },
-  })
-  if (existe) {
-    return NextResponse.json({ error: 'Código já em uso' }, { status: 409 })
-  }
+  const existe = await prisma.laboratorio.findUnique({ where: { codigo: parse.data.codigo } })
+  if (existe) return NextResponse.json({ error: 'Código já em uso' }, { status: 409 })
 
   const lab = await prisma.laboratorio.create({ data: parse.data })
+
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'CRIAR',
+    entidade:   'LABORATORIO',
+    entidadeId: lab.id,
+    descricao:  `Criou laboratório "${lab.nome}" (${lab.codigo})`,
+    metadados:  { lab },
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return NextResponse.json(lab, { status: 201 })
 }

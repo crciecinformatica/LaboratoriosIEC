@@ -36,6 +36,15 @@ export const permissoes = {
     configurar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
     logs:       [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
   },
+  // Relatórios: operadores e admins veem tudo; apoio acadêmico não tem acesso
+  relatorios: {
+    visualizar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+    exportar:   [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
+  },
+  // Log de auditoria de operações: apenas administradores
+  auditoria: {
+    visualizar: [Perfil.ADMINISTRADOR],
+  },
 } as const
 
 export type Recurso = keyof typeof permissoes

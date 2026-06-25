@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { editarTurmaSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -42,11 +43,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   if (parse.data.codigo) {
-    const conflito = await prisma.turma.findFirst({
-      where: { codigo: parse.data.codigo, NOT: { id } },
-    })
+    const conflito = await prisma.turma.findFirst({ where: { codigo: parse.data.codigo, NOT: { id } } })
     if (conflito) return NextResponse.json({ error: 'Código já em uso' }, { status: 409 })
   }
+
+  const anterior = await prisma.turma.findUnique({ where: { id } })
 
   const turma = await prisma.turma.update({
     where: { id },
@@ -54,10 +55,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     include: { professor: { select: { id: true, nome: true } } },
   })
 
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'EDITAR',
+    entidade:   'TURMA',
+    entidadeId: id,
+    descricao:  `Editou turma "${turma.nome}" (${turma.codigo})`,
+    metadados:  { antes: anterior, camposAlterados: Object.keys(parse.data) },
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return NextResponse.json(turma)
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -68,12 +79,20 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const reservas = await prisma.solicitacaoReserva.count({ where: { turmaId: id } })
   if (reservas > 0) {
-    return NextResponse.json(
-      { error: 'Turma possui reservas vinculadas e não pode ser excluída' },
-      { status: 409 }
-    )
+    return NextResponse.json({ error: 'Turma possui reservas vinculadas e não pode ser excluída' }, { status: 409 })
   }
 
+  const turma = await prisma.turma.findUnique({ where: { id }, select: { nome: true, codigo: true } })
   await prisma.turma.delete({ where: { id } })
+
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'EXCLUIR',
+    entidade:   'TURMA',
+    entidadeId: id,
+    descricao:  `Excluiu turma "${turma?.nome}" (${turma?.codigo})`,
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return new NextResponse(null, { status: 204 })
 }

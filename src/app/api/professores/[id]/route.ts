@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { editarProfessorSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -42,11 +43,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   if (parse.data.email) {
-    const conflito = await prisma.professor.findFirst({
-      where: { email: parse.data.email, NOT: { id } },
-    })
+    const conflito = await prisma.professor.findFirst({ where: { email: parse.data.email, NOT: { id } } })
     if (conflito) return NextResponse.json({ error: 'Email já cadastrado' }, { status: 409 })
   }
+
+  const anterior = await prisma.professor.findUnique({ where: { id } })
 
   const professor = await prisma.professor.update({
     where: { id },
@@ -54,10 +55,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     include: { _count: { select: { turmas: true, reservas: true } } },
   })
 
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'EDITAR',
+    entidade:   'PROFESSOR',
+    entidadeId: id,
+    descricao:  `Editou professor "${professor.nome}" (${professor.email})`,
+    metadados:  { antes: anterior, camposAlterados: Object.keys(parse.data) },
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return NextResponse.json(professor)
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -66,10 +77,16 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   }
 
-  await prisma.professor.update({
-    where: { id },
-    data: { ativo: false },
-  })
+  const professor = await prisma.professor.update({ where: { id }, data: { ativo: false } })
+
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'EXCLUIR',
+    entidade:   'PROFESSOR',
+    entidadeId: id,
+    descricao:  `Desativou professor "${professor.nome}" (${professor.email})`,
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
 
   return new NextResponse(null, { status: 204 })
 }

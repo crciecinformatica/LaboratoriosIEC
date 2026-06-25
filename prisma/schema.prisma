@@ -57,6 +57,7 @@ model Usuario {
   sessoes             Sessao[]
   solicitacoesCriadas SolicitacaoReserva[] @relation("CriadaPor")
   tramitacoes         HistoricoTramitacao[]
+  logsOperacao LogOperacao[]
 
   @@map("usuarios")
 }
@@ -204,6 +205,28 @@ model Anexo {
   @@map("anexos")
 }
 
+model LogOperacao {
+  id          String      @id @default(cuid())
+  usuarioId   String
+  acao        AcaoLog
+  entidade    EntidadeLog
+  entidadeId  String
+  descricao   String      // texto legível: "Confirmou reserva 'Aula de Redes' (Lab 505)"
+  metadados   Json?       // valores antes/depois, campos alterados, etc.
+  ip          String?
+  criadoEm   DateTime    @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([entidade])
+  @@index([entidadeId])
+  @@index([criadoEm(sort: Desc)])
+  @@index([acao])
+  @@map("logs_operacao")
+}
+
+
 model LogIntegracao {
   id         String   @id @default(cuid())
   servico    String
@@ -216,4 +239,25 @@ model LogIntegracao {
   criadoEm  DateTime @default(now())
 
   @@map("logs_integracao")
+}
+
+enum AcaoLog {
+  CRIAR
+  EDITAR
+  EXCLUIR
+  CONFIRMAR
+  REJEITAR
+  REAGENDAR
+  MARCAR_CONFLITO
+  UPLOAD_ANEXO
+  LOGIN
+  LOGOUT
+}
+
+enum EntidadeLog {
+  RESERVA
+  LABORATORIO
+  PROFESSOR
+  TURMA
+  USUARIO
 }

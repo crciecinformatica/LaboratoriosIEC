@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/prisma/client'
 import { ReservaService } from '@/services/reserva.service'
 import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { reagendarReservaSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
-  // Tanto operadores como o próprio solicitante podem reagendar
   if (!temPermissao(session.user.perfil, 'reservas', 'confirmar') &&
       !temPermissao(session.user.perfil, 'reservas', 'criar')) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
@@ -25,13 +26,24 @@ export async function POST(req: NextRequest) {
 
   const { reservaId, datas } = parse.data
 
+  const reserva = await prisma.solicitacaoReserva.findUnique({
+    where:  { id: reservaId },
+    select: { titulo: true },
+  })
+
   try {
-    // 1. Persiste novas datas + volta para AGUARDANDO_CONFIRMACAO
     await ReservaService.reagendar(reservaId, datas, session.user.id)
 
-    // ─── Atualiza evento no Google Calendar ─────────────────────────────────────
-    // O calendarId é resolvido a partir de laboratorio.googleCalendarId.
-    // Falha não reverte o reagendamento — apenas loga.
+    registrarLog({
+      usuarioId:  session.user.id,
+      acao:       'REAGENDAR',
+      entidade:   'RESERVA',
+      entidadeId: reservaId,
+      descricao:  `Reagendou reserva "${reserva?.titulo ?? reservaId}" com ${datas.length} data(s)`,
+      metadados:  { novasDatas: datas },
+      ip:         extrairIp(req),
+    }).catch((e) => console.error('[AuditLog]', e))
+
     GoogleCalendarService.atualizarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {

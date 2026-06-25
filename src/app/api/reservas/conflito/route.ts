@@ -6,6 +6,7 @@ import { conflitoReservaSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
 import { TipoEvento } from '@prisma/client'
 import { transicaoValida } from '@/types'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -25,21 +26,21 @@ export async function POST(req: NextRequest) {
   const { reservaId, dataHorarioIds } = parse.data
 
   try {
+    let tituloReserva = ''
+    let observacao    = ''
+
     await prisma.$transaction(async (tx) => {
       const reserva = await tx.solicitacaoReserva.findUniqueOrThrow({
         where:  { id: reservaId },
-        select: { status: true },
+        select: { status: true, titulo: true },
       })
+
+      tituloReserva = reserva.titulo
 
       if (!transicaoValida(reserva.status, 'CONFLITO_DE_DATAS')) {
         throw new Error(`Transição inválida: ${reserva.status} → CONFLITO_DE_DATAS`)
       }
 
-      // Se dataHorarioIds foi informado e não está vazio, valida que todos os
-      // IDs pertencem de fato a esta reserva (evita marcar datas de outra
-      // reserva por engano/manipulação do payload) e marca SÓ essas.
-      // Caso contrário (omitido ou array vazio), mantém o comportamento
-      // anterior: marca todas as datas da reserva como em conflito.
       const temSelecaoEspecifica = Array.isArray(dataHorarioIds) && dataHorarioIds.length > 0
 
       if (temSelecaoEspecifica) {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
           where:  { reservaId },
           select: { id: true },
         })
-        const idsValidos = new Set(datasDaReserva.map((d) => d.id))
+        const idsValidos   = new Set(datasDaReserva.map((d) => d.id))
         const idsInvalidos = dataHorarioIds!.filter((id) => !idsValidos.has(id))
 
         if (idsInvalidos.length > 0) {
@@ -58,21 +59,20 @@ export async function POST(req: NextRequest) {
           where: { id: { in: dataHorarioIds } },
           data:  { emConflito: true },
         })
+
+        observacao = `Conflito marcado em ${dataHorarioIds!.length} data(s) específica(s).`
       } else {
         await tx.dataHorarioReserva.updateMany({
           where: { reservaId },
           data:  { emConflito: true },
         })
+        observacao = 'Conflito marcado em todas as datas da reserva.'
       }
 
       await tx.solicitacaoReserva.update({
         where: { id: reservaId },
         data:  { status: 'CONFLITO_DE_DATAS' },
       })
-
-      const observacao = temSelecaoEspecifica
-        ? `Conflito marcado em ${dataHorarioIds!.length} data(s) específica(s) da reserva.`
-        : 'Conflito marcado em todas as datas da reserva.'
 
       await tx.historicoTramitacao.create({
         data: {
@@ -85,6 +85,16 @@ export async function POST(req: NextRequest) {
         },
       })
     })
+
+    registrarLog({
+      usuarioId:  session.user.id,
+      acao:       'MARCAR_CONFLITO',
+      entidade:   'RESERVA',
+      entidadeId: reservaId,
+      descricao:  `Marcou conflito na reserva "${tituloReserva}" — ${observacao}`,
+      metadados:  { dataHorarioIds },
+      ip:         extrairIp(req),
+    }).catch((e) => console.error('[AuditLog]', e))
 
     return NextResponse.json({ ok: true })
   } catch (err) {

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { editarUsuarioSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -41,16 +42,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Dados inválidos', detalhes: parse.error.flatten() }, { status: 422 })
   }
 
+  const anterior = await prisma.usuario.findUnique({
+    where: { id },
+    select: { nome: true, email: true, perfil: true, ativo: true },
+  })
+
   const usuario = await prisma.usuario.update({
     where: { id },
     data: parse.data,
     select: { id: true, nome: true, email: true, perfil: true, ativo: true, codigoPessoa: true, criadoEm: true },
   })
 
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'EDITAR',
+    entidade:   'USUARIO',
+    entidadeId: id,
+    descricao:  `Editou usuário "${usuario.nome}" (${usuario.email})`,
+    metadados:  { antes: anterior, camposAlterados: Object.keys(parse.data) },
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return NextResponse.json(usuario)
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
@@ -63,10 +79,20 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Não é possível desativar o próprio usuário' }, { status: 409 })
   }
 
-  await prisma.usuario.update({
+  const usuario = await prisma.usuario.update({
     where: { id },
     data: { ativo: false },
+    select: { nome: true, email: true },
   })
+
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'EXCLUIR',
+    entidade:   'USUARIO',
+    entidadeId: id,
+    descricao:  `Desativou usuário "${usuario.nome}" (${usuario.email})`,
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
 
   return new NextResponse(null, { status: 204 })
 }

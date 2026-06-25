@@ -6,6 +6,7 @@ import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-ca
 import { ConflitosService } from '@/services/conflito.service'
 import { confirmarReservaActionSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -25,7 +26,8 @@ export async function POST(req: NextRequest) {
   const { reservaId, laboratorioId } = parse.data
 
   try {
-    // ─── Transação SERIALIZÁVEL para evitar race condition ──────────────────────
+    let tituloReserva = ''
+
     await prisma.$transaction(
       async (tx) => {
         const datas = await tx.dataHorarioReserva.findMany({
@@ -49,8 +51,10 @@ export async function POST(req: NextRequest) {
 
         const reservaAtual = await tx.solicitacaoReserva.findUniqueOrThrow({
           where:  { id: reservaId },
-          select: { status: true },
+          select: { status: true, titulo: true },
         })
+
+        tituloReserva = reservaAtual.titulo
 
         await tx.solicitacaoReserva.update({
           where: { id: reservaId },
@@ -67,19 +71,20 @@ export async function POST(req: NextRequest) {
           },
         })
       },
-      {
-        isolationLevel: 'Serializable',
-        timeout: 10_000,
-        maxWait: 5_000,
-      }
+      { isolationLevel: 'Serializable', timeout: 10_000, maxWait: 5_000 }
     )
 
-    // ─── Google Calendar (fora da tx) ───────────────────────────────────────────
-    // Mantido: confirmação ainda cria o evento no Calendar. O que foi removido
-    // aqui foi APENAS a notificação Teams/CSC — confirmação não dispara mais
-    // nenhuma ação via Teams ou CSC, por decisão de negócio. CSC e Teams agora
-    // só são acionados em IntegracoesService.notificarCriacao(), no momento em
-    // que o formulário de solicitação é preenchido.
+    // Log de auditoria (fire-and-forget, fora da tx)
+    registrarLog({
+      usuarioId:  session.user.id,
+      acao:       'CONFIRMAR',
+      entidade:   'RESERVA',
+      entidadeId: reservaId,
+      descricao:  `Confirmou reserva "${tituloReserva}"`,
+      metadados:  { laboratorioId },
+      ip:         extrairIp(req),
+    }).catch((e) => console.error('[AuditLog]', e))
+
     GoogleCalendarService.criarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {

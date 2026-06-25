@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
+import { prisma } from '@/lib/prisma/client'
 import { ReservaService } from '@/services/reserva.service'
 import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { rejeitarReservaActionSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -23,15 +25,25 @@ export async function POST(req: NextRequest) {
 
   const { reservaId, motivoRejeicao } = parse.data
 
+  // Captura título antes de rejeitar
+  const reserva = await prisma.solicitacaoReserva.findUnique({
+    where:  { id: reservaId },
+    select: { titulo: true },
+  })
+
   try {
-    // 1. Rejeita no banco (transação interna do ReservaService)
     await ReservaService.rejeitar(reservaId, { motivoRejeicao }, session.user.id)
 
-    // ─── Remove evento do Google Calendar ───────────────────────────────────────
-    // Mantido: rejeição ainda remove o evento do Calendar, se existir.
-    // REMOVIDO: notificação via Teams/CSC — rejeição não dispara mais nenhuma
-    // ação externa de notificação, por decisão de negócio (CSC/Teams só na
-    // criação da solicitação).
+    registrarLog({
+      usuarioId:  session.user.id,
+      acao:       'REJEITAR',
+      entidade:   'RESERVA',
+      entidadeId: reservaId,
+      descricao:  `Rejeitou reserva "${reserva?.titulo ?? reservaId}"`,
+      metadados:  { motivoRejeicao },
+      ip:         extrairIp(req),
+    }).catch((e) => console.error('[AuditLog]', e))
+
     GoogleCalendarService.deletarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {
