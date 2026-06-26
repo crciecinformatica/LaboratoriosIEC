@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { criarProfessorSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -24,7 +25,6 @@ export async function GET(req: NextRequest) {
       ? [
           { nome: { contains: search, mode: 'insensitive' as const } },
           { email: { contains: search, mode: 'insensitive' as const } },
-          { matricula: { contains: search, mode: 'insensitive' as const } },
         ]
       : undefined,
   }
@@ -62,5 +62,15 @@ export async function POST(req: NextRequest) {
   if (existe) return NextResponse.json({ error: 'Email já cadastrado' }, { status: 409 })
 
   const professor = await prisma.professor.create({ data: parse.data })
+
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'CRIAR',
+    entidade:   'PROFESSOR',
+    entidadeId: professor.id,
+    descricao:  `Criou professor "${professor.nome}" (${professor.email})`,
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return NextResponse.json(professor, { status: 201 })
 }

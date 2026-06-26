@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { criarTurmaSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -25,7 +26,6 @@ export async function GET(req: NextRequest) {
       ? [
           { nome: { contains: search, mode: 'insensitive' as const } },
           { codigo: { contains: search, mode: 'insensitive' as const } },
-          { codigoDisciplina: { contains: search, mode: 'insensitive' as const } },
         ]
       : undefined,
   }
@@ -66,5 +66,15 @@ export async function POST(req: NextRequest) {
     data: parse.data,
     include: { professor: { select: { id: true, nome: true } } },
   })
+
+  registrarLog({
+    usuarioId:  session.user.id,
+    acao:       'CRIAR',
+    entidade:   'TURMA',
+    entidadeId: turma.id,
+    descricao:  `Criou turma "${turma.nome}" (${turma.codigo})`,
+    ip:         extrairIp(req),
+  }).catch((e) => console.error('[AuditLog]', e))
+
   return NextResponse.json(turma, { status: 201 })
 }

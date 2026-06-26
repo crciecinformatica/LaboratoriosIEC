@@ -24,10 +24,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { reservaId, laboratorioId } = parse.data
+  let tituloReserva = ''
 
   try {
-    let tituloReserva = ''
-
     await prisma.$transaction(
       async (tx) => {
         const datas = await tx.dataHorarioReserva.findMany({
@@ -74,7 +73,7 @@ export async function POST(req: NextRequest) {
       { isolationLevel: 'Serializable', timeout: 10_000, maxWait: 5_000 }
     )
 
-    // Log de auditoria (fire-and-forget, fora da tx)
+    // Log de auditoria (fire-and-forget, após commit)
     registrarLog({
       usuarioId:  session.user.id,
       acao:       'CONFIRMAR',
@@ -85,6 +84,7 @@ export async function POST(req: NextRequest) {
       ip:         extrairIp(req),
     }).catch((e) => console.error('[AuditLog]', e))
 
+    // Google Calendar (fora da tx)
     GoogleCalendarService.criarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {
@@ -100,31 +100,21 @@ export async function POST(req: NextRequest) {
     if (err instanceof ConflitoError) {
       return NextResponse.json({ error: err.message }, { status: 409 })
     }
-
     if (isPrismaSerializationError(err)) {
       return NextResponse.json(
         { error: 'Conflito de concorrência: outra operação alterou esta reserva. Tente novamente.' },
         { status: 409 }
       )
     }
-
     const msg = err instanceof Error ? err.message : 'Erro ao confirmar reserva'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
 class ConflitoError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ConflitoError'
-  }
+  constructor(message: string) { super(message); this.name = 'ConflitoError' }
 }
 
 function isPrismaSerializationError(err: unknown): boolean {
-  return Boolean(
-    err &&
-    typeof err === 'object' &&
-    'code' in err &&
-    (err as { code?: string }).code === 'P2034'
-  )
+  return Boolean(err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === 'P2034')
 }
