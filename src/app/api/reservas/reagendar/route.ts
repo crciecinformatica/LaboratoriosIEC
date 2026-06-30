@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
+  // Tanto operadores como o próprio solicitante podem reagendar
   if (!temPermissao(session.user.perfil, 'reservas', 'confirmar') &&
       !temPermissao(session.user.perfil, 'reservas', 'criar')) {
     return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
   })
 
   try {
+    // 1. Persiste novas datas + volta para AGUARDANDO_CONFIRMACAO
     await ReservaService.reagendar(reservaId, datas, session.user.id)
 
     registrarLog({
@@ -44,6 +46,7 @@ export async function POST(req: NextRequest) {
       ip:         extrairIp(req),
     }).catch((e) => console.error('[AuditLog]', e))
 
+    // ─── Atualiza evento no Google Calendar ─────────────────────────────────────
     GoogleCalendarService.atualizarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {

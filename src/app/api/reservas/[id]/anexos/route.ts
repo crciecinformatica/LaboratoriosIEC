@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { temPermissao } from '@/lib/auth/rbac'
 import { AnexoService } from '@/services/anexo.service'
+import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const reserva = await prisma.solicitacaoReserva.findUnique({
     where: { id },
-    select: { solicitanteId: true },
+    select: { solicitanteId: true, titulo: true },
   })
   if (!reserva) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
@@ -64,6 +65,17 @@ export async function POST(req: NextRequest, { params }: Params) {
       file.type || 'application/octet-stream',
       file.size
     )
+
+    registrarLog({
+      usuarioId:  session.user.id,
+      acao:       'UPLOAD_ANEXO',
+      entidade:   'RESERVA',
+      entidadeId: id,
+      descricao:  `Enviou anexo "${file.name}" na reserva "${reserva.titulo}"`,
+      metadados:  { nomeArquivo: file.name, tamanho: file.size, tipo: file.type },
+      ip:         extrairIp(req),
+    }).catch((e) => console.error('[AuditLog]', e))
+
     return NextResponse.json(anexo, { status: 201 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao enviar anexo'

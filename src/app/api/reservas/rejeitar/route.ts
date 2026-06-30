@@ -25,15 +25,17 @@ export async function POST(req: NextRequest) {
 
   const { reservaId, motivoRejeicao } = parse.data
 
-  // Captura título antes de rejeitar
+  // Captura título antes de rejeitar, para usar na descrição do log
   const reserva = await prisma.solicitacaoReserva.findUnique({
     where:  { id: reservaId },
     select: { titulo: true },
   })
 
   try {
+    // 1. Rejeita no banco (transação interna do ReservaService)
     await ReservaService.rejeitar(reservaId, { motivoRejeicao }, session.user.id)
 
+    // Log de auditoria (fire-and-forget, após commit)
     registrarLog({
       usuarioId:  session.user.id,
       acao:       'REJEITAR',
@@ -44,6 +46,8 @@ export async function POST(req: NextRequest) {
       ip:         extrairIp(req),
     }).catch((e) => console.error('[AuditLog]', e))
 
+    // Remove evento do Google Calendar (mantido). CSC/Teams não são mais
+    // notificados em rejeição, por decisão de negócio (só na criação).
     GoogleCalendarService.deletarEventoReserva(reservaId, session.user.id)
       .catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {
