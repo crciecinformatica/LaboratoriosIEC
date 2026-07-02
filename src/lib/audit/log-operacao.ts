@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma/client'
-import type { AcaoLog, EntidadeLog } from '@prisma/client'
+import type { AcaoLog, EntidadeLog, Prisma } from '@prisma/client'
 
 export interface LogOperacaoInput {
   usuarioId:  string
@@ -7,7 +7,7 @@ export interface LogOperacaoInput {
   entidade:   EntidadeLog
   entidadeId: string
   descricao:  string
-  metadados?: Record<string, unknown>
+  metadados?: Prisma.InputJsonValue
   ip?:        string
 }
 

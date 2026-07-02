@@ -15,6 +15,18 @@ Sistema web para gestão de reservas de laboratórios acadêmicos, baseado em m�
 - Conta Supabase (ou PostgreSQL local)
 - Credenciais Google Calendar (OAuth2)
 - Webhook MS Teams configurado
+- Conta/outlook e credenciais SMTP para envio de emails do operador de TI
+
+## Configuração de ambiente
+
+No arquivo `.env.local`, adicione as seguintes variáveis para o envio de email via Outlook SMTP:
+
+- `OUTLOOK_SMTP_HOST`
+- `OUTLOOK_SMTP_PORT`
+- `OUTLOOK_SMTP_USER`
+- `OUTLOOK_SMTP_PASS`
+- `OUTLOOK_FROM_EMAIL`
+- `OUTLOOK_TO_EMAILS`
 
 ## Instalação
 

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { prisma } from '@/lib/prisma/client'
 import { GoogleCalendarService, GoogleCalendarError } from '@/services/google-calendar.service'
 import { ConflitosService } from '@/services/conflito.service'
+import { EmailService } from '@/services/email.service'
 import { confirmarReservaActionSchema } from '@/lib/validations/reserva'
 import { temPermissao } from '@/lib/auth/rbac'
 import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
@@ -92,6 +93,12 @@ export async function POST(req: NextRequest) {
         } else {
           console.error('[Sprint6] Erro inesperado Google Calendar:', err)
         }
+      })
+
+    // Outlook email de confirmação (fora da tx)
+    EmailService.sendReservaConfirmacaoEmail(reservaId, session.user.id)
+      .catch((err: unknown) => {
+        console.error('[Email] Falha no envio de confirmação:', err)
       })
 
     return NextResponse.json({ ok: true })

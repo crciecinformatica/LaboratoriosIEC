@@ -68,6 +68,7 @@ export const eventoLabel: Record<TipoEvento, string> = {
   CRIACAO:                  'Solicitação criada',
   ENVIO_CSC:                'Enviado ao CSC',
   NOTIFICACAO_TEAMS:        'Notificação Teams',
+  ENVIO_EMAIL:              'Envio de email',
   CONFIRMACAO:              'Reserva confirmada',
   REJEICAO:                 'Reserva rejeitada',
   CONFLITO_DETECTADO:       'Conflito de datas detectado',
