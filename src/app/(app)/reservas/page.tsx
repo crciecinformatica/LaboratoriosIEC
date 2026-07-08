@@ -3,13 +3,15 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { useReservas } from '@/hooks/useApi'
+import { useReservas, useDeleteReserva } from '@/hooks/useApi'
 import { statusLabel, statusColor } from '@/types'
 import type { StatusReserva } from '@prisma/client'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, CalendarDays, Loader2 } from 'lucide-react'
+import { Plus, CalendarDays, Loader2, Trash2, AlertTriangle } from 'lucide-react'
+import { Modal } from '@/components/ui/modal'
+import { Button } from '@/components/ui/button'
 
 const STATUS_FILTERS = [
   { value: '',                       label: 'Todas'      },
@@ -44,13 +46,30 @@ export default function ReservasPage() {
   const { data: session } = useSession()
   const [status, setStatus] = useState('')
   const [page,   setPage]   = useState(1)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const { data, isLoading } = useReservas(status, page)
+  const deleteMutation = useDeleteReserva()
   const reservas = data?.reservas ?? []
   const total    = data?.total    ?? 0
   const limit    = data?.limit    ?? 20
 
   const podeCriar = ['APOIO_ACADEMICO', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
+  const podeDeletar = ['ADMINISTRADOR'].includes(session?.user.perfil ?? '')
+
+  const handleDelete = (id: string) => {
+    setDeleteId(id)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteId) return
+    try {
+      await deleteMutation.mutateAsync(deleteId)
+      setDeleteId(null)
+    } catch (error) {
+      console.error('Erro ao excluir reserva:', error)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -94,18 +113,19 @@ export default function ReservasPage() {
                 <th>Horário</th>
                 <th>Status</th>
                 <th>Laboratório</th>
+                {podeDeletar && <th>Ações</th>}
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="text-center py-10">
+                  <td colSpan={podeDeletar ? 8 : 7} className="text-center py-10">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               )}
               {!isLoading && reservas.length === 0 && (
-                <EmptyState message="Nenhuma reserva encontrada." colSpan={7} />
+                <EmptyState message="Nenhuma reserva encontrada." colSpan={podeDeletar ? 8 : 7} />
               )}
               {reservas.map((r) => (
                 <tr key={r.id}>
@@ -133,6 +153,21 @@ export default function ReservasPage() {
                     </span>
                   </td>
                   <td className="text-muted-foreground">{r.laboratorio?.nome ?? '—'}</td>
+                  {podeDeletar && (
+                    <td>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteId(r.id)}
+                        disabled={deleteMutation.isPending}
+                        aria-label="Excluir reserva"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="sr-only">Excluir reserva</span>
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -140,6 +175,45 @@ export default function ReservasPage() {
         </div>
         <Pagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <Modal
+          open
+          onClose={() => setDeleteId(null)}
+          title="Excluir reserva"
+          size="sm"
+        >
+          <div className="space-y-4 p-6">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-foreground">Excluir reserva</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tem certeza que deseja excluir esta reserva? Esta ação não pode ser desfeita e
+                  removerá permanentemente todas as datas, histórico de tramitação e anexos associados.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-border">
+              <Button
+                variant="secondary"
+                onClick={() => setDeleteId(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="danger"
+                onClick={confirmDelete}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

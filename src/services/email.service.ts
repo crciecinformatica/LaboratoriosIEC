@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma/client'
 import { TipoEvento, Prisma } from '@prisma/client'
-import { sendOutlookEmail, OutlookEmailError } from '@/lib/integrations/outlook'
+import { sendOutlookEmail, OutlookEmailError, type FluxoEmail } from '@/lib/integrations/outlook'
 
 interface ReservaEmailInfo {
   id: string
@@ -28,6 +28,7 @@ function formatarData(dia: Date): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'UTC',
   }).format(dia)
 }
 
@@ -35,6 +36,18 @@ function montarLinhasDatas(datas: ReservaEmailInfo['datas']): string {
   return datas
     .map((d) => `• ${formatarData(d.dia)} — ${d.horaInicio} às ${d.horaFim}`)
     .join('\n')
+}
+
+function montarDatasEstruturadas(datas: ReservaEmailInfo['datas']): { dia: string; horaInicio: string; horaFim: string }[] {
+  if (!datas || !Array.isArray(datas)) {
+    console.warn('[Email] montarDatasEstruturadas received invalid datas:', datas)
+    return []
+  }
+  return datas.map((d) => ({
+    dia: d.dia ? formatarData(d.dia) : '',
+    horaInicio: d.horaInicio ?? '',
+    horaFim: d.horaFim ?? '',
+  }))
 }
 
 function montarEnderecoLaboratorio(laboratorio: ReservaEmailInfo['laboratorio']): string {
@@ -142,6 +155,7 @@ async function registrarEmailHistorico(reservaId: string, operadorId: string, ev
 }
 
 async function registrarEmailLog(
+  fluxo: FluxoEmail,
   payload: Record<string, unknown>,
   resposta: Record<string, unknown>,
   erro?: string
@@ -149,8 +163,8 @@ async function registrarEmailLog(
   await prisma.logIntegracao.create({
     data: {
       servico: 'OUTLOOK',
-      endpoint: 'smtp',
-      metodo: 'SEND',
+      endpoint: `power-automate:${fluxo.toLowerCase()}`,
+      metodo: 'POST',
       payload: sanitizeForJson(payload),
       resposta: sanitizeForJson(resposta),
       statusHttp: erro ? 500 : 250,
@@ -167,14 +181,38 @@ export class EmailService {
     const text = montarCorpoConfirmacao(reserva)
 
     try {
-      await sendOutlookEmail({ to: recipients, subject, text })
+      console.log('[Email] Raw reserva.datas from Prisma:', JSON.stringify(reserva.datas, (k, v) => v instanceof Date ? v.toISOString() : v))
+      const dados = {
+        reservaId: reserva.id,
+        titulo: reserva.titulo,
+        laboratorio: reserva.laboratorio?.nome ?? null,
+        endereco: montarEnderecoLaboratorio(reserva.laboratorio),
+        professor: reserva.professor.nome,
+        professorEmail: reserva.professor.email,
+        turma: `${reserva.turma.codigo} — ${reserva.turma.nome}`,
+        curso: reserva.turma.curso,
+        semestre: reserva.turma.semestre,
+        numeroAlunos: reserva.numeroAlunos,
+        softwares: reserva.softwaresUtilizados,
+        solicitante: reserva.solicitante.nome,
+        solicitanteEmail: reserva.solicitante.email,
+        datas: montarDatasEstruturadas(reserva.datas),
+      }
+      console.log('[Email] Payload dados:', JSON.stringify(dados))
+      await sendOutlookEmail({
+        flow: 'CONFIRMACAO',
+        to: recipients,
+        subject,
+        text,
+        ...dados,  // Spread flat - matches flow schema
+      })
       await Promise.all([
         registrarEmailHistorico(reservaId, operadorId, TipoEvento.ENVIO_EMAIL, 'Email de confirmação enviado ao apoio acadêmico.'),
-        registrarEmailLog({ reservaId, tipo: 'CONFIRMACAO' }, { message: 'OK' }),
+        registrarEmailLog('CONFIRMACAO', { reservaId, tipo: 'CONFIRMACAO' }, { message: 'OK' }),
       ])
     } catch (error) {
       const message = error instanceof OutlookEmailError ? error.message : String(error)
-      await registrarEmailLog({ reservaId, tipo: 'CONFIRMACAO' }, { message: 'FAILED' }, message)
+      await registrarEmailLog('CONFIRMACAO', { reservaId, tipo: 'CONFIRMACAO' }, { message: 'FAILED' }, message)
       console.error('[Email] Falha no envio de confirmação:', message)
       throw error
     }
@@ -187,14 +225,36 @@ export class EmailService {
     const text = montarCorpoRejeicao(reserva, motivoRejeicao)
 
     try {
-      await sendOutlookEmail({ to: recipients, subject, text })
+      const dados = {
+        reservaId: reserva.id,
+        titulo: reserva.titulo,
+        motivoRejeicao: motivoRejeicao ?? null,
+        professor: reserva.professor.nome,
+        professorEmail: reserva.professor.email,
+        turma: `${reserva.turma.codigo} — ${reserva.turma.nome}`,
+        curso: reserva.turma.curso,
+        semestre: reserva.turma.semestre,
+        numeroAlunos: reserva.numeroAlunos,
+        softwares: reserva.softwaresUtilizados,
+        solicitante: reserva.solicitante.nome,
+        solicitanteEmail: reserva.solicitante.email,
+        datas: montarDatasEstruturadas(reserva.datas),
+      }
+      console.log('[Email] Payload dados.datas:', JSON.stringify(dados.datas))
+      await sendOutlookEmail({
+        flow: 'REJEICAO',
+        to: recipients,
+        subject,
+        text,
+        ...dados,  // Spread flat - matches flow schema
+      })
       await Promise.all([
         registrarEmailHistorico(reservaId, operadorId, TipoEvento.ENVIO_EMAIL, 'Email de rejeição enviado ao apoio acadêmico.'),
-        registrarEmailLog({ reservaId, tipo: 'REJEICAO' }, { message: 'OK' }),
+        registrarEmailLog('REJEICAO', { reservaId, tipo: 'REJEICAO' }, { message: 'OK' }),
       ])
     } catch (error) {
       const message = error instanceof OutlookEmailError ? error.message : String(error)
-      await registrarEmailLog({ reservaId, tipo: 'REJEICAO' }, { message: 'FAILED' }, message)
+      await registrarEmailLog('REJEICAO', { reservaId, tipo: 'REJEICAO' }, { message: 'FAILED' }, message)
       console.error('[Email] Falha no envio de rejeição:', message)
       throw error
     }

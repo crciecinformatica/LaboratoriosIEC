@@ -239,6 +239,14 @@ export function useReagendarReserva() {
   })
 }
 
+export function useDeleteReserva() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/reservas/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservas'] }),
+  })
+}
+
 export function useKanbanReservas() {
   return useGet<KanbanData>(['reservas', 'kanban'], '/api/reservas/kanban')
 }

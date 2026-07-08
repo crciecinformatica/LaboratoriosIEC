@@ -1,5 +1,3 @@
-import nodemailer from 'nodemailer'
-
 export class OutlookEmailError extends Error {
   constructor(message: string, public response?: unknown) {
     super(message)
@@ -7,75 +5,67 @@ export class OutlookEmailError extends Error {
   }
 }
 
-interface SendOutlookEmailParams {
-  to: string[]
-  subject: string
-  text: string
-  html?: string
-  cc?: string[]
-}
+export type FluxoEmail = 'CONFIRMACAO' | 'REJEICAO'
 
-function getEnvVar(name: string): string {
-  const value = process.env[name]
+function getFlowUrl(flow: FluxoEmail): string {
+  const envKey =
+    flow === 'CONFIRMACAO'
+      ? 'POWER_AUTOMATE_EMAIL_CONFIRMACAO_URL'
+      : 'POWER_AUTOMATE_EMAIL_REJEICAO_URL'
+  const value = process.env[envKey]
   if (!value) {
-    throw new OutlookEmailError(`Variável de ambiente ${name} não configurada.`)
+    throw new OutlookEmailError(`Variável de ambiente ${envKey} não configurada.`)
   }
   return value
 }
 
-function parseRecipients(value: string | undefined): string[] {
-  if (!value) return []
-  return value
-    .split(',')
-    .map((recipient) => recipient.trim())
-    .filter(Boolean)
-}
-
-let transporter: nodemailer.Transporter | null = null
-
-function getTransporter(): nodemailer.Transporter {
-  if (transporter) return transporter
-
-  const host = getEnvVar('OUTLOOK_SMTP_HOST')
-  const port = parseInt(getEnvVar('OUTLOOK_SMTP_PORT'), 10)
-  const user = getEnvVar('OUTLOOK_SMTP_USER')
-  const pass = getEnvVar('OUTLOOK_SMTP_PASS')
-
-  transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass,
-    },
-  })
-
-  return transporter
+export interface SendOutlookEmailParams {
+  flow: FluxoEmail
+  to: string[]
+  cc?: string[]
+  subject: string
+  text: string
+  // campos extras do payload (ex: reservaId, titulo, datas, etc.) - serão espalhados no body
+  [key: string]: unknown
 }
 
 export async function sendOutlookEmail(params: SendOutlookEmailParams): Promise<void> {
-  const from = getEnvVar('OUTLOOK_FROM_EMAIL')
-  const recipients = params.to
-  const cc = params.cc ?? []
+  const { flow, to, cc, subject, text, ...rest } = params
 
-  if (recipients.length === 0) {
+  if (to.length === 0) {
     throw new OutlookEmailError('Nenhum destinatário configurado para envio de email.')
   }
 
+  const url = getFlowUrl(flow)
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+
   try {
-    await getTransporter().sendMail({
-      from,
-      to: recipients.join(', '),
-      cc: cc.length > 0 ? cc.join(', ') : undefined,
-      subject: params.subject,
-      text: params.text,
-      html: params.html,
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, cc, subject, text, ...rest }),
+      signal: controller.signal,
     })
+
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '')
+      throw new OutlookEmailError(
+        `Falha ao enviar email via Power Automate (${resp.status}): ${body}`,
+        { status: resp.status, body }
+      )
+    }
   } catch (error) {
+    if (error instanceof OutlookEmailError) throw error
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new OutlookEmailError('Timeout ao enviar email via Power Automate (15s).')
+    }
     throw new OutlookEmailError(
-      `Falha ao enviar email pelo Outlook: ${error instanceof Error ? error.message : String(error)}`,
+      `Falha ao enviar email via Power Automate: ${error instanceof Error ? error.message : String(error)}`,
       error
     )
+  } finally {
+    clearTimeout(timeout)
   }
 }
