@@ -181,6 +181,10 @@ export class EmailService {
   static async sendReservaConfirmacaoEmail(reservaId: string, operadorId: string) {
     const reserva = await carregarReservaEmailInfo(reservaId)
     const recipients = getDefaultRecipients()
+    const solicitanteEmail = reserva.emailSolicitanteExterno ?? reserva.solicitante?.email
+    if (solicitanteEmail && !recipients.includes(solicitanteEmail)) {
+      recipients.push(solicitanteEmail)
+    }
     const subject = montarAssuntoConfirmacao(reserva)
     const text = montarCorpoConfirmacao(reserva)
 
@@ -225,6 +229,10 @@ export class EmailService {
   static async sendReservaRejeicaoEmail(reservaId: string, operadorId: string, motivoRejeicao?: string) {
     const reserva = await carregarReservaEmailInfo(reservaId)
     const recipients = getDefaultRecipients()
+    const solicitanteEmail = reserva.emailSolicitanteExterno ?? reserva.solicitante?.email
+    if (solicitanteEmail && !recipients.includes(solicitanteEmail)) {
+      recipients.push(solicitanteEmail)
+    }
     const subject = montarAssuntoRejeicao(reserva)
     const text = montarCorpoRejeicao(reserva, motivoRejeicao)
 
