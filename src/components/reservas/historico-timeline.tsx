@@ -9,7 +9,7 @@ type HistoricoItem = {
   statusDepois: string | null
   observacao: string | null
   criadoEm: string
-  usuario: { id: string; nome: string }
+  usuario: { id: string; nome: string } | null
 }
 
 export function HistoricoTimeline({ historico }: { historico: HistoricoItem[] }) {
@@ -39,7 +39,7 @@ export function HistoricoTimeline({ historico }: { historico: HistoricoItem[] })
               <p className="text-xs text-slate-600 mt-1">{item.observacao}</p>
             )}
             <p className="text-[10px] text-slate-400 mt-1">
-              {item.usuario.nome} · {new Date(item.criadoEm).toLocaleString('pt-BR')}
+              {item.usuario?.nome ?? 'Sistema'} · {new Date(item.criadoEm).toLocaleString('pt-BR')}
             </p>
           </div>
         </li>

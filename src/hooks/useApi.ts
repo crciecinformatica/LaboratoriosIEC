@@ -452,7 +452,7 @@ type ReservaDetalhe = ReservaResumo & {
     statusDepois: string | null
     observacao: string | null
     criadoEm: string
-    usuario: { id: string; nome: string }
+    usuario: { id: string; nome: string } | null
   }[]
   anexos: {
     id: string
