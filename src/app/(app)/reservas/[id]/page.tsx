@@ -289,7 +289,12 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
             <div><p className="text-xs text-muted-foreground">Disciplina</p><p className="text-foreground">{reserva.turma.nome}</p></div>
             <div><p className="text-xs text-muted-foreground">Softwares</p><p className="text-foreground">{reserva.softwaresUtilizados}</p></div>
             <div><p className="text-xs text-muted-foreground">Nº alunos</p><p className="text-foreground">{reserva.numeroAlunos}</p></div>
-            <div><p className="text-xs text-muted-foreground">Solicitante</p><p className="text-foreground">{reserva.solicitante.nome}</p></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Solicitante</p>
+              <p className="text-foreground">
+                {reserva.solicitante?.nome ?? reserva.nomeSolicitanteExterno ?? '—'}
+              </p>
+            </div>
             {reserva.laboratorio && (
               <div><p className="text-xs text-muted-foreground">Laboratório</p><p className="text-foreground">{reserva.laboratorio.nome}</p></div>
             )}
