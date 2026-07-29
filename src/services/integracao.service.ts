@@ -143,21 +143,8 @@ export class IntegracoesService {
       }
     }
 
-    // Ticket B (Praça da Liberdade) — APENAS para PRESENCIAL E produção
-        if (reserva.modalidadeReserva === 'PRESENCIAL' && isProducao()) {
-      if (!config.flexFieldPraca) {
-        const msg = 'CSC_FLEX_FIELD_103_PRACA_LIBERDADE não configurado para este ambiente'
-        console.error('[CSC_PRACA_LIBERDADE] Configuração ausente:', msg)
-        await prisma.logIntegracao.create({
-          data: {
-            servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST',
-            payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
-            erro: msg,
-          },
-        })
-        return
-      }
-
+    // Ticket B (Praça da Liberdade) — APENAS para PRESENCIAL se o flexfield estiver configurado no .env
+    if (reserva.modalidadeReserva === 'PRESENCIAL' && config.flexFieldPraca) {
       let protocoloPracaLiberdade: string | undefined
       try {
         const resp = await abrirChamadoCSC({
