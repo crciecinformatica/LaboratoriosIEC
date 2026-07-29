@@ -99,7 +99,7 @@ export const criarReservaFormSchema = z
 
 // ─── Schema da API (back-end) ─────────────────────────────────────────────────
 
-export const criarReservaSchema = z
+const criarReservaBaseObject = z
   .object({
     ...camposReservaBase,
     professorId:     z.string().cuid().optional(),
@@ -110,6 +110,8 @@ export const criarReservaSchema = z
     nomeSolicitanteExterno: z.string().max(100).optional(),
     emailSolicitanteExterno: z.string().email().optional(),
   })
+
+export const criarReservaSchema = criarReservaBaseObject
   .superRefine((data, ctx) => {
     if (!data.professorId && !data.professorManual)
       ctx.addIssue({ code: 'custom', message: 'Professor obrigatório', path: ['professorId'] })
@@ -258,8 +260,13 @@ export type SolicitarAcessoInput  = z.infer<typeof solicitarAcessoSchema>
 export type AprovarSolicitacaoAcessoInput = z.infer<typeof aprovarSolicitacaoAcessoSchema>
 export type NegarSolicitacaoAcessoInput   = z.infer<typeof negarSolicitacaoAcessoSchema>
 
-export const criarReservaWebhookSchema = criarReservaSchema.extend({
+export const criarReservaWebhookSchema = criarReservaBaseObject.extend({
   nomeSolicitanteExterno: z.string().min(3, 'Nome do solicitante é obrigatório no webhook').max(100),
   emailSolicitanteExterno: z.string().email('Email do solicitante inválido no webhook'),
+}).superRefine((data, ctx) => {
+  if (!data.professorId && !data.professorManual)
+    ctx.addIssue({ code: 'custom', message: 'Professor obrigatório', path: ['professorId'] })
+  if (!data.turmaId && !data.turmaManual)
+    ctx.addIssue({ code: 'custom', message: 'Turma obrigatória', path: ['turmaId'] })
 })
 export type CriarReservaWebhookInput = z.infer<typeof criarReservaWebhookSchema>
