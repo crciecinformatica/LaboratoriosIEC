@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     // Log de auditoria
     registrarLog({
       usuarioId:  session.user.id,
-      acao:       'ATUALIZAR',
+      acao:       'EDITAR',
       entidade:   'RESERVA',
       entidadeId: reservaId,
       descricao:  `Disparou manualmente integrações (CSC/Teams) para a reserva "${reserva.titulo}"`,
