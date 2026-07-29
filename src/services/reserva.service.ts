@@ -216,7 +216,7 @@ export class ReservaService {
     const matricula = input.professorManual.matricula?.trim()
     if (matricula) {
       const existe = await tx.professor.findUnique({ where: { matricula } })
-      if (existe) throw new Error('Professor já cadastrado no sistema')
+      if (existe) return existe.id
     }
     const prof = await tx.professor.create({ data: { ...input.professorManual } })
     return prof.id
@@ -229,7 +229,7 @@ export class ReservaService {
       where: { codigoDisciplina: input.turmaManual.codigoDisciplina },
       select: { id: true },
     })
-    if (existe) throw new Error('Turma já cadastrada no sistema')
+    if (existe) return existe.id
     const turma = await tx.turma.create({ data: { ...input.turmaManual, professorId } })
     return turma.id
   }
