@@ -10,13 +10,14 @@ interface Props {
   cor?:     'blue' | 'green' | 'amber' | 'red' | 'purple' | 'slate'
 }
 
+// Mapeia cores semânticas para variáveis CSS que respeitam dark/light mode
 const esquemas = {
-  blue:   { bg: 'bg-blue-50',   icon: 'text-blue-600',   valor: 'text-blue-900'   },
-  green:  { bg: 'bg-green-50',  icon: 'text-green-600',  valor: 'text-green-900'  },
-  amber:  { bg: 'bg-amber-50',  icon: 'text-amber-600',  valor: 'text-amber-900'  },
-  red:    { bg: 'bg-red-50',    icon: 'text-red-600',    valor: 'text-red-900'    },
-  purple: { bg: 'bg-purple-50', icon: 'text-purple-600', valor: 'text-purple-900' },
-  slate:  { bg: 'bg-slate-50',  icon: 'text-slate-600',  valor: 'text-slate-900'  },
+  blue:   { bg: 'bg-primary/10',   icon: 'text-primary',     valor: 'text-primary-foreground'   },
+  green:  { bg: 'bg-[var(--color-success-bg)]',  icon: 'text-[var(--color-success)]',  valor: 'text-[var(--color-success)]'  },
+  amber:  { bg: 'bg-[var(--color-warning-bg)]', icon: 'text-[var(--color-warning)]', valor: 'text-[var(--color-warning)]' },
+  red:    { bg: 'bg-[var(--color-danger-bg)]',   icon: 'text-[var(--color-danger)]',   valor: 'text-[var(--color-danger)]'   },
+  'purple': { bg: 'bg-[var(--color-info-bg)]', icon: 'text-[var(--color-info)]', valor: 'text-[var(--color-info)]' },
+  slate:  { bg: 'bg-muted', icon: 'text-muted-foreground', valor: 'text-foreground' },
 }
 
 export function StatCard({ titulo, valor, subtitulo, icon: Icon, cor = 'blue' }: Props) {
@@ -28,8 +29,8 @@ export function StatCard({ titulo, valor, subtitulo, icon: Icon, cor = 'blue' }:
       </div>
       <div>
         <p className={`text-2xl font-bold ${e.valor}`}>{valor}</p>
-        <p className="text-sm font-medium text-slate-700 mt-0.5">{titulo}</p>
-        {subtitulo && <p className="text-xs text-slate-400 mt-0.5">{subtitulo}</p>}
+        <p className="text-sm font-medium text-muted-foreground mt-0.5">{titulo}</p>
+        {subtitulo && <p className="text-xs text-muted-foreground/70 mt-0.5">{subtitulo}</p>}
       </div>
     </div>
   )

@@ -6,7 +6,11 @@ import {
   useCreateUsuario,
   useUpdateUsuario,
   useDeleteUsuario,
+  useSolicitacoesAcessoPendentes,
+  useAprovarSolicitacaoAcesso,
+  useNegarSolicitacaoAcesso,
   type UsuarioPublico,
+  type SolicitacaoAcesso,
 } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
 import { useForm } from 'react-hook-form'
@@ -17,7 +21,7 @@ import {
   type CriarUsuarioInput,
   type EditarUsuarioInput,
 } from '@/lib/validations/reserva'
-import { Plus, Pencil, Trash2, Users, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, Loader2, UserCheck, UserX, Inbox } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { Modal } from '@/components/ui/modal'
 import { PageHeader } from '@/components/ui/page-header'
@@ -54,6 +58,14 @@ export default function UsuariosPage() {
   const criar   = useCreateUsuario()
   const excluir = useDeleteUsuario()
   const toast   = useToast()
+
+  const { data: solicitacoesData, isLoading: isLoadingSolicitacoes } = useSolicitacoesAcessoPendentes()
+  const aprovarSolicitacao = useAprovarSolicitacaoAcesso()
+  const negarSolicitacao   = useNegarSolicitacaoAcesso()
+  const [negandoId, setNegandoId] = useState<string | null>(null)
+  const [motivoNegar, setMotivoNegar] = useState('')
+
+  const solicitacoesPendentes = solicitacoesData?.solicitacoes ?? []
 
   const usuarios = data?.usuarios ?? []
   const total    = data?.total    ?? 0
@@ -142,6 +154,38 @@ export default function UsuariosPage() {
     }
   }
 
+  // ─── Solicitações de acesso ──────────────────────────────────────────────────
+
+  async function handleAprovar(solicitacao: SolicitacaoAcesso) {
+    if (!confirm(`Aprovar acesso de "${solicitacao.nome}" (${solicitacao.email})?`)) return
+    try {
+      await aprovarSolicitacao.mutateAsync({ id: solicitacao.id })
+      toast.success(`Acesso de "${solicitacao.nome}" aprovado.`)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? 'Erro ao aprovar solicitação.'
+      toast.error(msg)
+    }
+  }
+
+  function abrirNegar(id: string) {
+    setNegandoId(id)
+    setMotivoNegar('')
+  }
+
+  async function confirmarNegar() {
+    if (!negandoId) return
+    try {
+      await negarSolicitacao.mutateAsync({ id: negandoId, motivo: motivoNegar || undefined })
+      toast.success('Solicitação negada.')
+      setNegandoId(null)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? 'Erro ao negar solicitação.'
+      toast.error(msg)
+    }
+  }
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -162,6 +206,64 @@ export default function UsuariosPage() {
         placeholder="Buscar por nome ou email..."
       />
 
+      {/* ── Solicitações de acesso pendentes ───────────────────────────── */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Solicitações de acesso pendentes
+          </h2>
+          <span className="badge badge-amber">{solicitacoesPendentes.length} pendente(s)</span>
+        </div>
+
+        {isLoadingSolicitacoes && (
+          <div className="card px-4 py-6 flex justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {!isLoadingSolicitacoes && solicitacoesPendentes.length === 0 && (
+          <div className="card px-4 py-6 flex items-center gap-2 text-sm text-muted-foreground">
+            <Inbox className="w-4 h-4" />
+            Nenhuma solicitação de acesso aguardando aprovação.
+          </div>
+        )}
+
+        {solicitacoesPendentes.map((solicitacao) => (
+          <div
+            key={solicitacao.id}
+            className="card px-4 py-3 flex items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                <Users className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-foreground truncate">{solicitacao.nome}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {solicitacao.email} · Cód. pessoa: {solicitacao.codigoPessoa}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => abrirNegar(solicitacao.id)}
+                disabled={negarSolicitacao.isPending}
+              >
+                <UserX className="w-3.5 h-3.5" /> Negar
+              </button>
+              <button
+                className="btn-primary btn-sm"
+                onClick={() => handleAprovar(solicitacao)}
+                disabled={aprovarSolicitacao.isPending}
+              >
+                <UserCheck className="w-3.5 h-3.5" /> Aprovar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="card">
         <div className="table-wrapper">
           <table className="table">
@@ -179,7 +281,7 @@ export default function UsuariosPage() {
               {isLoading && (
                 <tr>
                   <td colSpan={6} className="text-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               )}
@@ -190,20 +292,20 @@ export default function UsuariosPage() {
                 <tr key={usuario.id}>
                   <td>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                        <Users className="w-3.5 h-3.5 text-blue-600" />
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <Users className="w-3.5 h-3.5 text-primary" />
                       </div>
-                      <span className="font-medium text-slate-800">{usuario.nome}</span>
+                      <span className="font-medium text-foreground">{usuario.nome}</span>
                     </div>
                   </td>
-                  <td className="text-slate-600">{usuario.email}</td>
+                  <td className="text-muted-foreground">{usuario.email}</td>
                   <td>
                     <span className={`badge ${perfilBadge[usuario.perfil] ?? 'badge-blue'}`}>
                       {perfilLabel[usuario.perfil] ?? usuario.perfil}
                     </span>
                   </td>
-                  <td className="text-slate-500 font-mono text-xs">
-                    {usuario.codigoPessoa ?? <span className="text-slate-300">—</span>}
+                  <td className="text-muted-foreground font-mono text-xs">
+                    {usuario.codigoPessoa ?? <span className="text-muted-foreground/50">—</span>}
                   </td>
                   <td>
                     <span className={`badge ${usuario.ativo ? 'badge-green' : 'badge-gray'}`}>
@@ -291,11 +393,11 @@ export default function UsuariosPage() {
             <div className="form-group">
               <label className="label">
                 Código PUC
-                <span className="text-xs text-slate-400 font-normal ml-1">(LoginSolicitante CSC)</span>
+                <span className="text-xs text-muted-foreground font-normal ml-1">(LoginSolicitante CSC)</span>
               </label>
               <input {...createForm.register('codigoPessoa')} className="input"
                 placeholder="ex: 288319" />
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Código de pessoa PUC. Necessário para abrir chamados no CSC automaticamente.
               </p>
               {createForm.formState.errors.codigoPessoa && (
@@ -303,7 +405,7 @@ export default function UsuariosPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
                 Cancelar
               </button>
@@ -333,7 +435,7 @@ export default function UsuariosPage() {
             <div className="form-group">
               <label className="label">Email</label>
               <input value={editing.email} className="input" disabled />
-              <p className="text-xs text-slate-400 mt-1">O email não pode ser alterado.</p>
+              <p className="text-xs text-muted-foreground mt-1">O email não pode ser alterado.</p>
             </div>
 
             <div className="form-group">
@@ -348,18 +450,18 @@ export default function UsuariosPage() {
             <div className="form-group">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input {...editForm.register('ativo')} type="checkbox" className="rounded" />
-                <span className="text-sm text-slate-700">Usuário ativo</span>
+                <span className="text-sm text-foreground">Usuário ativo</span>
               </label>
             </div>
 
             <div className="form-group">
               <label className="label">
                 Código PUC
-                <span className="text-xs text-slate-400 font-normal ml-1">(LoginSolicitante CSC)</span>
+                <span className="text-xs text-muted-foreground font-normal ml-1">(LoginSolicitante CSC)</span>
               </label>
               <input {...editForm.register('codigoPessoa')} className="input"
                 placeholder="ex: 288319" />
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Código de pessoa PUC usado para abertura automática de chamados no CSC.
               </p>
               {editForm.formState.errors.codigoPessoa && (
@@ -367,7 +469,7 @@ export default function UsuariosPage() {
               )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
                 Cancelar
               </button>
@@ -381,6 +483,40 @@ export default function UsuariosPage() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* ── Modal negar solicitação de acesso ─────────────────────────── */}
+      <Modal
+        open={!!negandoId}
+        onClose={() => setNegandoId(null)}
+        title="Negar solicitação de acesso"
+      >
+        <div className="px-6 py-4 flex flex-col gap-4">
+          <div className="form-group">
+            <label className="label">Motivo (opcional)</label>
+            <textarea
+              className="input"
+              rows={3}
+              value={motivoNegar}
+              onChange={(e) => setMotivoNegar(e.target.value)}
+              placeholder="Informe o motivo da recusa..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setNegandoId(null)}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-primary btn-sm"
+              disabled={negarSolicitacao.isPending}
+              onClick={confirmarNegar}>
+              {negarSolicitacao.isPending
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <UserX className="w-3.5 h-3.5" />}
+              Negar solicitação
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

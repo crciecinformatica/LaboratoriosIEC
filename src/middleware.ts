@@ -42,5 +42,9 @@ export default withAuth(
 )
 
 export const config = {
-  matcher: ['/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)'],
+  // api/solicitacoes-acesso fica fora do matcher porque o POST de criação é público
+  // (pessoa sem conta solicitando acesso). GET/aprovar/negar são protegidos
+  // explicitamente dentro de cada route handler (getServerSession + temPermissao),
+  // seguindo o mesmo padrão já usado em outras rotas administrativas como /api/usuarios.
+  matcher: ['/((?!login|api/auth|api/solicitacoes-acesso|_next/static|_next/image|favicon.ico).*)'],
 }

@@ -76,6 +76,7 @@ async function exportarCSVReservas(de: Date, ate: Date): Promise<NextResponse> {
     select: {
       titulo: true, status: true, modalidadeReserva: true, softwaresUtilizados: true,
       numeroAlunos: true, cscProtocolo: true, criadoEm: true,
+      nomeSolicitanteExterno: true,
       solicitante: { select: { nome: true, email: true } },
       professor:   { select: { nome: true, email: true } },
       turma:       { select: { nome: true, codigo: true, curso: true, semestre: true } },
@@ -90,7 +91,7 @@ async function exportarCSVReservas(de: Date, ate: Date): Promise<NextResponse> {
   const rows = reservas.map((r) => {
     const datasFlat = r.datas.flatMap((d) => [format(new Date(d.dia), 'dd/MM/yyyy'), `${d.horaInicio}–${d.horaFim}`])
     while (datasFlat.length < 6) datasFlat.push('')
-    return [r.titulo, r.status, r.modalidadeReserva, r.solicitante.nome, r.professor.nome, r.turma.codigo, r.turma.curso, r.turma.semestre, r.laboratorio?.nome ?? '', r.numeroAlunos, r.softwaresUtilizados, r.cscProtocolo ?? '', format(new Date(r.criadoEm), 'dd/MM/yyyy HH:mm'), ...datasFlat.slice(0, 6)]
+    return [r.titulo, r.status, r.modalidadeReserva, r.nomeSolicitanteExterno ?? r.solicitante?.nome ?? 'Desconhecido', r.professor.nome, r.turma.codigo, r.turma.curso, r.turma.semestre, r.laboratorio?.nome ?? '', r.numeroAlunos, r.softwaresUtilizados, r.cscProtocolo ?? '', format(new Date(r.criadoEm), 'dd/MM/yyyy HH:mm'), ...datasFlat.slice(0, 6)]
       .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')
   })
 

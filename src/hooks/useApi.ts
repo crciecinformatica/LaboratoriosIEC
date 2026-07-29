@@ -160,6 +160,43 @@ export function useDeleteUsuario() {
   })
 }
 
+// ─── Solicitações de acesso ─────────────────────────────────────────────────────
+
+export function useSolicitarAcesso() {
+  return useMutation({
+    mutationFn: (data: { nome: string; codigoPessoa: string; email: string; senha: string }) =>
+      axios.post('/api/solicitacoes-acesso', data).then((r) => r.data),
+  })
+}
+
+export function useSolicitacoesAcessoPendentes() {
+  return useGet<{ solicitacoes: SolicitacaoAcesso[]; total: number }>(
+    ['solicitacoes-acesso'],
+    '/api/solicitacoes-acesso'
+  )
+}
+
+export function useAprovarSolicitacaoAcesso() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, perfil }: { id: string; perfil?: string }) =>
+      axios.post(`/api/solicitacoes-acesso/${id}/aprovar`, { perfil }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['solicitacoes-acesso'] })
+      qc.invalidateQueries({ queryKey: ['usuarios'] })
+    },
+  })
+}
+
+export function useNegarSolicitacaoAcesso() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, motivo }: { id: string; motivo?: string }) =>
+      axios.post(`/api/solicitacoes-acesso/${id}/negar`, { motivo }).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['solicitacoes-acesso'] }),
+  })
+}
+
 // ─── Reservas ─────────────────────────────────────────────────────────────────
 
 export function useReservas(status = '', page = 1, limit = DEFAULT_LIMIT) {
@@ -352,6 +389,10 @@ type UsuarioPublico = {
   id: string; nome: string; email: string; perfil: string; ativo: boolean; criadoEm: string; codigoPessoa: string;
 }
 
+type SolicitacaoAcesso = {
+  id: string; nome: string; email: string; codigoPessoa: string; status: string; criadoEm: string;
+}
+
 // DataHorarioReserva no formato novo (dia Date + horaInicio/horaFim string)
 export type DataHorario = {
   id: string
@@ -425,4 +466,4 @@ type CalendarioLabs = AgendaSemanal & {
   eventos: (AgendaEvento & { turma?: string })[],
 }
 
-export type { Laboratorio, Professor, Turma, UsuarioPublico, ReservaResumo, ReservaDetalhe, KanbanCard }
+export type { Laboratorio, Professor, Turma, UsuarioPublico, SolicitacaoAcesso, ReservaResumo, ReservaDetalhe, KanbanCard }

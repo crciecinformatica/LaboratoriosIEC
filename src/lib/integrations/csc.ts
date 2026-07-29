@@ -76,23 +76,29 @@ const clienteCSC = criarClienteCSC()
  * Fluxo:
  * 1. POST para AbrirChamado -> retorna código do chamado
  * 2. GET para RetornaDetalhesChamados -> extrai o protocolo
- * @param payload Dados do chamado (descricao, loginSolicitante, etc)
+ * @param payload Dados do chamado (descricao, loginSolicitante, flexField103)
  * @returns { protocolo, raw } - número do protocolo e resposta bruta
  * @throws CscApiError em caso de falha
  */
 export async function abrirChamadoCSC(payload: {
   descricao: string
   loginSolicitante: string
+  flexField103: string
 }): Promise<CscResposta> {
   // Validar variáveis de ambiente
   const cscUrl = process.env.CSC_API_URL
   const cscToken = process.env.CSC_TOKEN
   const cscCatalogoId = process.env.CSC_CATALOGO_ID
-  const cscFlexField103 = process.env.CSC_FLEX_FIELD_103
 
-  if (!cscUrl || !cscToken || !cscCatalogoId || !cscFlexField103) {
+  if (!cscUrl || !cscToken || !cscCatalogoId) {
     throw new CscApiError(
-      'Variáveis de ambiente CSC não configuradas. Verifique CSC_API_URL, CSC_TOKEN, CSC_CATALOGO_ID, CSC_FLEX_FIELD_103'
+      'Variáveis de ambiente CSC não configuradas. Verifique CSC_API_URL, CSC_TOKEN, CSC_CATALOGO_ID'
+    )
+  }
+
+  if (!payload.flexField103) {
+    throw new CscApiError(
+      'flexField103 é obrigatório para abrir chamado CSC'
     )
   }
 
@@ -101,7 +107,7 @@ export async function abrirChamadoCSC(payload: {
     CatalogoServicosid: Number(cscCatalogoId),
     Descricao: payload.descricao,
     LoginSolicitante: payload.loginSolicitante,
-    flexfield103: Number(cscFlexField103),
+    flexfield103: Number(payload.flexField103),
     Token: cscToken,
   }
 

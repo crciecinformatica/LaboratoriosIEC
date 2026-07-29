@@ -107,6 +107,8 @@ export const criarReservaSchema = z
     professorManual: professorManualSchema.optional(),
     turmaManual:     turmaManualSchema.optional(),
     datas:           z.array(dataItemApiSchema).min(1, 'Informe ao menos uma data'),
+    nomeSolicitanteExterno: z.string().max(100).optional(),
+    emailSolicitanteExterno: z.string().email().optional(),
   })
   .superRefine((data, ctx) => {
     if (!data.professorId && !data.professorManual)
@@ -213,6 +215,25 @@ export const editarUsuarioSchema = z.object({
   codigoPessoa:z.string().max(50).optional(),
 })
 
+// ─── Solicitações de acesso ─────────────────────────────────────────────────────
+
+export const solicitarAcessoSchema = z.object({
+  nome:         z.string().min(3, 'Informe o nome completo').max(100),
+  codigoPessoa: z.string().min(1, 'Informe o código de pessoa').max(50),
+  email:        z.string().email('Email inválido'),
+  senha:        z.string().min(8, 'A senha deve ter ao menos 8 caracteres')
+                  .regex(/[A-Z]/, 'Inclua letra maiúscula')
+                  .regex(/[0-9]/, 'Inclua um número'),
+})
+
+export const aprovarSolicitacaoAcessoSchema = z.object({
+  perfil: z.enum(['APOIO_ACADEMICO', 'OPERADOR_TI', 'ADMINISTRADOR']).optional(),
+})
+
+export const negarSolicitacaoAcessoSchema = z.object({
+  motivo: z.string().max(500).optional(),
+})
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type CriarReservaInput     = z.infer<typeof criarReservaSchema>
@@ -233,3 +254,12 @@ export type CriarTurmaInput       = z.infer<typeof criarTurmaSchema>
 export type EditarTurmaInput      = z.infer<typeof editarTurmaSchema>
 export type CriarUsuarioInput     = z.infer<typeof criarUsuarioSchema>
 export type EditarUsuarioInput    = z.infer<typeof editarUsuarioSchema>
+export type SolicitarAcessoInput  = z.infer<typeof solicitarAcessoSchema>
+export type AprovarSolicitacaoAcessoInput = z.infer<typeof aprovarSolicitacaoAcessoSchema>
+export type NegarSolicitacaoAcessoInput   = z.infer<typeof negarSolicitacaoAcessoSchema>
+
+export const criarReservaWebhookSchema = criarReservaSchema.extend({
+  nomeSolicitanteExterno: z.string().min(3, 'Nome do solicitante é obrigatório no webhook').max(100),
+  emailSolicitanteExterno: z.string().email('Email do solicitante inválido no webhook'),
+})
+export type CriarReservaWebhookInput = z.infer<typeof criarReservaWebhookSchema>

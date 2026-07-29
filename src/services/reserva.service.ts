@@ -4,6 +4,7 @@ import { transicaoValida } from '@/types'
 import { ConflitosService } from './conflito.service'
 import type {
   CriarReservaInput,
+  CriarReservaWebhookInput,
   ConfirmarReservaInput,
   RejeitarReservaInput,
   CorrigirConflitoInput,
@@ -18,7 +19,7 @@ function parseDia(dia: string): Date {
 
 export class ReservaService {
 
-  static async criar(input: CriarReservaInput, solicitanteId: string) {
+  static async criar(input: CriarReservaInput | CriarReservaWebhookInput, solicitanteId?: string) {
     return prisma.$transaction(async (tx) => {
       const professorId = await this._resolverProfessor(tx, input)
       const turmaId     = await this._resolverTurma(tx, input, professorId)
@@ -30,7 +31,9 @@ export class ReservaService {
           softwaresUtilizados: input.softwaresUtilizados,
           numeroAlunos:        input.numeroAlunos,
           status:              'AGUARDANDO_CONFIRMACAO',
-          solicitanteId,
+          solicitanteId:       solicitanteId || null,
+          nomeSolicitanteExterno: 'nomeSolicitanteExterno' in input ? input.nomeSolicitanteExterno : null,
+          emailSolicitanteExterno: 'emailSolicitanteExterno' in input ? input.emailSolicitanteExterno : null,
           professorId,
           turmaId,
           datas: {
@@ -53,7 +56,7 @@ export class ReservaService {
       await tx.historicoTramitacao.create({
         data: {
           reservaId:    reserva.id,
-          usuarioId:    solicitanteId,
+          usuarioId:    solicitanteId || null,
           evento:       TipoEvento.CRIACAO,
           statusAntes:  'CRIADA',
           statusDepois: 'AGUARDANDO_CONFIRMACAO',

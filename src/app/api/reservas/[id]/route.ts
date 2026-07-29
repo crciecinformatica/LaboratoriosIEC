@@ -64,34 +64,35 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   try {
-    // Remove eventos do Google Calendar (fire-and-forget, antes do delete para ter acesso às datas)
-    GoogleCalendarService.deletarEventoReserva(id, session.user.id)
-      .catch((err: unknown) => {
-        if (err instanceof GoogleCalendarError) {
-          console.error('[GoogleCalendar] Falha ao deletar eventos da reserva:', err.message)
-        } else {
-          console.error('[GoogleCalendar] Erro inesperado ao deletar eventos:', err)
-        }
+      // Remove eventos do Google Calendar (aguarda completar antes de excluir a reserva
+      // para que o historicoTramitacao possa ser criado com a reservaId válida)
+      await GoogleCalendarService.deletarEventoReserva(id, session.user.id)
+        .catch((err: unknown) => {
+          if (err instanceof GoogleCalendarError) {
+            console.error('[GoogleCalendar] Falha ao deletar eventos da reserva:', err.message)
+          } else {
+            console.error('[GoogleCalendar] Erro inesperado ao deletar eventos:', err)
+          }
+        })
+
+      // Exclui a reserva (cascade deleta datas, historico, anexos automaticamente)
+      await prisma.solicitacaoReserva.delete({
+        where: { id },
       })
 
-    // Exclui a reserva (cascade deleta datas, historico, anexos automaticamente)
-    await prisma.solicitacaoReserva.delete({
-      where: { id },
-    })
+      // Log de auditoria (fire-and-forget)
+      registrarLog({
+        usuarioId:  session.user.id,
+        acao:       'EXCLUIR',
+        entidade:   'RESERVA',
+        entidadeId: id,
+        descricao:  `Excluiu reserva "${reserva.titulo}" (status: ${reserva.status})`,
+        metadados:  { statusAnterior: reserva.status },
+        ip:         extrairIp(req),
+      }).catch((e) => console.error('[AuditLog]', e))
 
-    // Log de auditoria (fire-and-forget)
-    registrarLog({
-      usuarioId:  session.user.id,
-      acao:       'EXCLUIR',
-      entidade:   'RESERVA',
-      entidadeId: id,
-      descricao:  `Excluiu reserva "${reserva.titulo}" (status: ${reserva.status})`,
-      metadados:  { statusAnterior: reserva.status },
-      ip:         extrairIp(req),
-    }).catch((e) => console.error('[AuditLog]', e))
-
-    return NextResponse.json({ ok: true })
-  } catch (err) {
+      return NextResponse.json({ ok: true })
+    } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao excluir reserva'
     return NextResponse.json({ error: msg }, { status: 500 })
   }

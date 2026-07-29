@@ -139,7 +139,7 @@ export default function ProfessoresPage() {
               {isLoading && (
                 <tr>
                   <td colSpan={colSpan} className="text-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               )}
@@ -150,18 +150,18 @@ export default function ProfessoresPage() {
                 <tr key={prof.id}>
                   <td>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <GraduationCap className="w-3.5 h-3.5 text-primary" />
                       </div>
-                      <span className="font-medium text-slate-800">{prof.nome}</span>
+                      <span className="font-medium text-foreground">{prof.nome}</span>
                     </div>
                   </td>
-                  <td className="text-slate-600">{prof.email}</td>
+                  <td className="text-muted-foreground">{prof.email}</td>
                   <td>{prof.matricula ?? '—'}</td>
-                  <td className="text-slate-500">{prof.telefone ?? '—'}</td>
-                  <td className="text-slate-500">{prof.departamento ?? '—'}</td>
+                  <td className="text-muted-foreground">{prof.telefone ?? '—'}</td>
+                  <td className="text-muted-foreground">{prof.departamento ?? '—'}</td>
                   <td>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-muted-foreground">
                       {prof._count.turmas} turma(s) · {prof._count.reservas} reserva(s)
                     </span>
                   </td>
@@ -221,7 +221,7 @@ export default function ProfessoresPage() {
             <input {...register('departamento')} className="input" placeholder="Informática" />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
               Cancelar
             </button>

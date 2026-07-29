@@ -26,7 +26,9 @@ interface ReservaParaCalendario {
   professor:           { nome: string; email: string }
   turma:               { nome: string; codigo: string; semestre: string; curso: string; numOferta: string | null }
   laboratorio:         { nome: string; googleCalendarId: string | null } | null
-  solicitante:         { nome: string; email: string }
+  solicitante:         { nome: string; email: string } | null
+  nomeSolicitanteExterno?: string | null
+  emailSolicitanteExterno?: string | null
   datas:               DataHorario[]
 }
 
@@ -70,7 +72,7 @@ function montarDescription(reserva: ReservaParaCalendario): string {
     `Professor: ${reserva.professor.nome}`,
     `Softwares: ${reserva.softwaresUtilizados}`,
     `Nº alunos: ${reserva.numeroAlunos}`,
-    `Solicitante: ${reserva.solicitante.nome} (${reserva.solicitante.email})`,
+    `Solicitante: ${reserva.nomeSolicitanteExterno ?? reserva.solicitante?.nome ?? 'Desconhecido'} (${reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? 'Sem email'})`,
   ].join('\n')
 }
 
@@ -99,7 +101,7 @@ export class GoogleCalendarService {
     const description = montarDescription(reserva)
     const attendees   = [
       { email: reserva.professor.email },
-      { email: reserva.solicitante.email },
+      { email: reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? '' },
     ]
 
     // Processa datas que ainda não têm evento criado
@@ -194,7 +196,7 @@ export class GoogleCalendarService {
     const description = montarDescription(reserva)
     const attendees   = [
       { email: reserva.professor.email },
-      { email: reserva.solicitante.email },
+      { email: reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? '' },
     ]
 
     const erros: string[] = []
@@ -282,13 +284,20 @@ export class GoogleCalendarService {
    */
   static async deletarEventoReserva(reservaId: string, operadorId: string): Promise<void> {
     // Carrega laboratorio e datas com googleEventId diretamente de DataHorarioReserva
-    const reserva = await prisma.solicitacaoReserva.findUniqueOrThrow({
+    // Usa findUnique (não OrThrow) pois a reserva pode já ter sido excluída ou
+    // estar em estado onde não é mais acessível no momento da rejeição
+    const reserva = await prisma.solicitacaoReserva.findUnique({
       where:  { id: reservaId },
       select: {
         laboratorio: { select: { nome: true, googleCalendarId: true } },
         datas:       { select: { id: true, dia: true, googleEventId: true } },
       },
     })
+
+    if (!reserva) {
+      console.log(`[GoogleCalendar] Reserva ${reservaId} não encontrada. Pulando deleção de eventos.`)
+      return
+    }
 
     const calendarId = reserva.laboratorio?.googleCalendarId
     const datasComEvento = reserva.datas.filter((d) => d.googleEventId)
@@ -326,28 +335,36 @@ export class GoogleCalendarService {
       }
     }
 
-    await prisma.$transaction([
-      prisma.historicoTramitacao.create({
-        data: {
-          reservaId,
-          usuarioId:  operadorId,
-          evento:     TipoEvento.GOOGLE_CALENDAR_ATUALIZADO,
-          observacao: `${deletados} evento(s) removidos da agenda "${reserva.laboratorio?.nome}" (rejeição).`,
-          metadados:  { calendarId, deletados, erros },
-        },
-      }),
-      prisma.logIntegracao.create({
-        data: {
-          servico:    'GOOGLE_CALENDAR',
-          endpoint:   'events.delete',
-          metodo:     'DELETE',
-          statusHttp: erros.length === 0 ? 204 : 207,
-          payload:    { reservaId, calendarId, totalDatas: datasComEvento.length },
-          resposta:   { deletados, falhas: erros },
-          ...(erros.length > 0 ? { erro: erros.join(' | ') } : {}),
-        },
-      }),
-    ])
+    // Tenta criar o histórico e log de integração, mas não falha a operação
+    // se a reserva ou o usuário já não existirem (ex: exclusão concorrente)
+    try {
+      await prisma.$transaction([
+        prisma.historicoTramitacao.create({
+          data: {
+            reservaId,
+            usuarioId:  operadorId,
+            evento:     TipoEvento.GOOGLE_CALENDAR_ATUALIZADO,
+            observacao: `${deletados} evento(s) removidos da agenda "${reserva.laboratorio?.nome}" (rejeição).`,
+            metadados:  { calendarId, deletados, erros },
+          },
+        }),
+        prisma.logIntegracao.create({
+          data: {
+            servico:    'GOOGLE_CALENDAR',
+            endpoint:   'events.delete',
+            metodo:     'DELETE',
+            statusHttp: erros.length === 0 ? 204 : 207,
+            payload:    { reservaId, calendarId, totalDatas: datasComEvento.length },
+            resposta:   { deletados, falhas: erros },
+            ...(erros.length > 0 ? { erro: erros.join(' | ') } : {}),
+          },
+        }),
+      ])
+    } catch (histErr) {
+      // Loga o erro mas não propaga - a deleção dos eventos já foi feita
+      console.warn('[GoogleCalendar] Falha ao registrar histórico/log de deleção (pode ser reserva/usuário inexistente):', 
+        histErr instanceof Error ? histErr.message : String(histErr))
+    }
 
     if (erros.length > 0) {
       throw new GoogleCalendarError(`Deleção parcial: ${deletados} ok, ${erros.length} falha(s).`)
@@ -386,6 +403,8 @@ export class GoogleCalendarService {
         professor:   { select: { nome: true, email: true } },
         turma:       { select: { nome: true, codigo: true, semestre: true, curso: true, numOferta: true } },
         laboratorio: { select: { nome: true, googleCalendarId: true } },
+        nomeSolicitanteExterno: true,
+        emailSolicitanteExterno: true,
         solicitante: { select: { nome: true, email: true } },
         datas: {
           orderBy: { dia: 'asc' },

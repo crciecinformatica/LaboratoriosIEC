@@ -156,7 +156,7 @@ export default function LaboratoriosPage() {
               {isLoading && (
                 <tr>
                   <td colSpan={colSpan} className="text-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               )}
@@ -167,15 +167,15 @@ export default function LaboratoriosPage() {
                 <tr key={lab.id}>
                   <td>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <FlaskConical className="w-3.5 h-3.5 text-blue-600" />
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <FlaskConical className="w-3.5 h-3.5 text-primary" />
                       </div>
-                      <span className="font-medium text-slate-800">{lab.nome}</span>
+                      <span className="font-medium text-foreground">{lab.nome}</span>
                     </div>
                   </td>
-                  <td><code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{lab.codigo}</code></td>
+                  <td><code className="text-xs bg-muted px-1.5 py-0.5 rounded">{lab.codigo}</code></td>
                   <td>{lab.capacidade} lugares</td>
-                  <td className="text-slate-500">{lab.localizacao ?? '—'}</td>
+                  <td className="text-muted-foreground">{lab.localizacao ?? '—'}</td>
                   <td>
                     <div className="flex flex-wrap gap-1">
                       {lab.recursos.slice(0, 3).map((r) => (
@@ -189,13 +189,13 @@ export default function LaboratoriosPage() {
                   <td>
                     {lab.googleCalendarId ? (
                       <span
-                        className="inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-50 px-1.5 py-0.5 rounded"
+                        className="inline-flex items-center gap-1 text-[11px] text-[var(--color-success)] bg-[var(--color-success-bg)] px-1.5 py-0.5 rounded"
                         title={lab.googleCalendarId}
                       >
                         <CalendarCheck2 className="w-3 h-3" /> Vinculada
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                         <CalendarX2 className="w-3 h-3" /> Sem agenda
                       </span>
                     )}
@@ -291,7 +291,7 @@ export default function LaboratoriosPage() {
               className="input font-mono text-xs"
               placeholder="abc123def456@group.calendar.google.com"
             />
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Opcional. Encontre em Google Calendar → ⋮ na agenda do laboratório
               → Configurações e compartilhamento → Integrar agenda → ID da agenda.
               Deixe em branco se este laboratório ainda não tem uma agenda própria
@@ -301,7 +301,7 @@ export default function LaboratoriosPage() {
             {errors.googleCalendarId && <p className="error-msg">{errors.googleCalendarId.message}</p>}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
               Cancelar
             </button>

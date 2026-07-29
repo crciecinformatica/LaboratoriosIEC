@@ -141,7 +141,7 @@ export default function TurmasPage() {
               {isLoading && (
                 <tr>
                   <td colSpan={colSpan} className="text-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-slate-400" />
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" />
                   </td>
                 </tr>
               )}
@@ -152,17 +152,17 @@ export default function TurmasPage() {
                 <tr key={turma.id}>
                   <td>
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="w-3.5 h-3.5 text-primary" />
                       </div>
-                      <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{turma.codigo}</code>
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{turma.codigo}</code>
                     </div>
                   </td>
-                  <td className="font-medium text-slate-800">{turma.nome}</td>
-                  <td className="text-slate-600">{turma.curso}</td>
+                  <td className="font-medium text-foreground">{turma.nome}</td>
+                  <td className="text-muted-foreground">{turma.curso}</td>
                   <td><span className="badge badge-blue">{turma.semestre}</span></td>
-                  <td className="text-slate-500">{turma.numOferta ?? '—'}</td>
-                  <td className="text-slate-600">{turma.professor.nome}</td>
+                  <td className="text-muted-foreground">{turma.numOferta ?? '—'}</td>
+                  <td className="text-muted-foreground">{turma.professor.nome}</td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button className="btn-ghost btn-sm p-1.5" title="Editar" onClick={() => openEdit(turma)}>
@@ -239,7 +239,7 @@ export default function TurmasPage() {
             {errors.professorId && <p className="error-msg">{errors.professorId.message}</p>}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button type="button" className="btn-secondary btn-sm" onClick={closeModal}>
               Cancelar
             </button>

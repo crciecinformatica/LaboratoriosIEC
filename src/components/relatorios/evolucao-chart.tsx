@@ -11,8 +11,8 @@ export function EvolucaoChart({ pontos, altura = 80 }: Props) {
   if (pontos.length === 0) {
     return (
       <div className="card p-5 flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-slate-800">Evolução diária de reservas</h3>
-        <p className="text-sm text-slate-400 py-4 text-center">Sem dados no período</p>
+        <h3 className="text-sm font-semibold text-foreground">Evolução diária de reservas</h3>
+        <p className="text-sm text-muted-foreground py-4 text-center">Sem dados no período</p>
       </div>
     )
   }
@@ -48,7 +48,7 @@ export function EvolucaoChart({ pontos, altura = 80 }: Props) {
 
   return (
     <div className="card p-5 flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-slate-800">Evolução diária de reservas</h3>
+      <h3 className="text-sm font-semibold text-foreground">Evolução diária de reservas</h3>
       <div className="w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${largura} ${altura + 20}`}
@@ -57,8 +57,8 @@ export function EvolucaoChart({ pontos, altura = 80 }: Props) {
         >
           <defs>
             <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#3b82f6" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"    />
+              <stop offset="0%"   stopColor="var(--primary)" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="var(--primary)" stopOpacity="0"    />
             </linearGradient>
           </defs>
 
@@ -69,7 +69,7 @@ export function EvolucaoChart({ pontos, altura = 80 }: Props) {
           <polyline
             points={polyline}
             fill="none"
-            stroke="#3b82f6"
+            stroke="var(--primary)"
             strokeWidth="2"
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -77,7 +77,7 @@ export function EvolucaoChart({ pontos, altura = 80 }: Props) {
 
           {/* Pontos */}
           {coords.map((c, i) => (
-            <circle key={i} cx={c.x} cy={c.y} r="3" fill="#3b82f6" />
+            <circle key={i} cx={c.x} cy={c.y} r="3" fill="var(--primary)" />
           ))}
 
           {/* Labels de datas */}
@@ -90,7 +90,7 @@ export function EvolucaoChart({ pontos, altura = 80 }: Props) {
                 y={altura + 16}
                 textAnchor="middle"
                 fontSize="9"
-                fill="#94a3b8"
+                fill="var(--muted-foreground)"
               >
                 {dia}/{mes}
               </text>

@@ -42,14 +42,14 @@ export default function IntegracoesPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-700">Serviço:</span>
+              <span className="text-sm font-medium text-muted-foreground">Serviço:</span>
               <select
                 value={servico}
                 onChange={(e) => {
                   setServico(e.target.value)
                   setPage(1)
                 }}
-                className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">Todos</option>
                 <option value="CSC">CSC</option>
@@ -66,9 +66,9 @@ export default function IntegracoesPage() {
                     setApenasErros(e.target.checked)
                     setPage(1)
                   }}
-                  className="w-4 h-4 rounded border-slate-300"
+                  className="w-4 h-4 rounded border-border"
                 />
-                <span className="text-sm font-medium text-slate-700">Apenas erros</span>
+                <span className="text-sm font-medium text-muted-foreground">Apenas erros</span>
               </label>
             </div>
           </div>
@@ -76,16 +76,16 @@ export default function IntegracoesPage() {
 
         {/* Tabela */}
         {isLoading ? (
-          <div className="text-center py-12 text-slate-600">Carregando...</div>
+          <div className="text-center py-12 text-muted-foreground">Carregando...</div>
         ) : error ? (
-          <div className="text-center py-12 text-red-600">Erro ao carregar logs</div>
+          <div className="text-center py-12 text-destructive">Erro ao carregar logs</div>
         ) : logs.length === 0 ? (
-          <div className="text-center py-12 text-slate-600">Nenhum log encontrado</div>
+          <div className="text-center py-12 text-muted-foreground">Nenhum log encontrado</div>
         ) : (
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
+          <div className="border border-border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50">
+                <TableRow className="bg-muted">
                   <TableHead className="w-24">Serviço</TableHead>
                   <TableHead>Endpoint</TableHead>
                   <TableHead className="w-24">Status</TableHead>
@@ -97,7 +97,7 @@ export default function IntegracoesPage() {
               <TableBody>
                 {logs.map((log) => (
                   <Fragment key={log.id}>
-                    <TableRow key={log.id} className="hover:bg-slate-50 cursor-pointer">
+                    <TableRow key={log.id} className="hover:bg-accent/50 cursor-pointer">
                       <TableCell>
                         <Badge variant={log.servico === 'CSC' ? 'secondary' : 'default'}>
                           {log.servico}
@@ -107,26 +107,26 @@ export default function IntegracoesPage() {
                         {log.endpoint}
                       </TableCell>
                       <TableCell>
-                        {log.statusHttp ? (
-                          <Badge
-                            variant={log.statusHttp >= 200 && log.statusHttp < 300 ? 'default' : 'error'}
-                          >
-                            {log.statusHttp}
-                          </Badge>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
+                                              {log.statusHttp ? (
+                                                <Badge
+                                                  variant={log.statusHttp >= 200 && log.statusHttp < 300 ? 'default' : 'error'}
+                                                >
+                                                  {log.statusHttp}
+                                                </Badge>
+                                              ) : (
+                                                <span className="text-muted-foreground">—</span>
+                                              )}
+                                            </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
                         {format(new Date(log.criadoEm), 'dd/MM/yyyy HH:mm:ss', { locale: ptBR })}
                       </TableCell>
                       <TableCell>
                         {log.erro ? (
-                          <span className="text-xs text-red-600 truncate max-w-[120px]">
+                          <span className="text-xs text-destructive truncate max-w-[120px]">
                             {log.erro.substring(0, 60)}...
                           </span>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
@@ -134,7 +134,7 @@ export default function IntegracoesPage() {
                           onClick={() =>
                             setExpandedId(expandedId === log.id ? null : log.id)
                           }
-                          className="p-1 hover:bg-slate-200 rounded"
+                          className="p-1 hover:bg-accent rounded"
                         >
                           {expandedId === log.id ? '▼' : '▶'}
                         </button>
@@ -143,12 +143,12 @@ export default function IntegracoesPage() {
 
                     {/* Linha expandida */}
                     {expandedId === log.id && (
-                      <TableRow className="bg-slate-50 border-t-0">
+                      <TableRow className="bg-muted border-t-0">
                         <TableCell colSpan={6} className="p-4">
                           <div className="space-y-4 text-sm">
                             {log.payload != null && (
                               <div>
-                                <h4 className="font-semibold text-slate-900 mb-2">Payload:</h4>
+                                <h4 className="font-semibold text-foreground mb-2">Payload:</h4>
                                 <pre className="bg-slate-900 text-slate-100 p-3 rounded overflow-auto max-h-64 text-xs">
                                   {JSON.stringify(log.payload, null, 2)}
                                 </pre>
@@ -157,7 +157,7 @@ export default function IntegracoesPage() {
 
                             {log.resposta != null && (
                               <div>
-                                <h4 className="font-semibold text-slate-900 mb-2">Resposta:</h4>
+                                <h4 className="font-semibold text-foreground mb-2">Resposta:</h4>
                                 <pre className="bg-slate-900 text-slate-100 p-3 rounded overflow-auto max-h-64 text-xs">
                                   {JSON.stringify(log.resposta, null, 2)}
                                 </pre>
@@ -166,8 +166,8 @@ export default function IntegracoesPage() {
 
                             {log.erro && (
                               <div>
-                                <h4 className="font-semibold text-red-900 mb-2">Erro:</h4>
-                                <div className="bg-red-50 border border-red-200 p-3 rounded text-red-900">
+                                <h4 className="font-semibold text-destructive mb-2">Erro:</h4>
+                                <div className="bg-destructive/10 border border-destructive/20 p-3 rounded text-destructive">
                                   {log.erro}
                                 </div>
                               </div>
@@ -186,7 +186,7 @@ export default function IntegracoesPage() {
         {/* Paginação */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-muted-foreground">
               Página {page} de {totalPages} ({total} registros)
             </div>
             <div className="flex items-center gap-2">

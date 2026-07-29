@@ -11,14 +11,14 @@ async function main() {
 
   const admin = await prisma.usuario.upsert({
     where: { email: 'admin@iec.edu.br' },
-    update: {},
-    create: { nome: 'Administrador IEC', email: 'admin@iec.edu.br', senhaHash, perfil: 'ADMINISTRADOR' },
+    update: { codigoPessoa: '919880' },
+    create: { nome: 'Administrador IEC', email: 'admin@iec.edu.br', senhaHash, perfil: 'ADMINISTRADOR', codigoPessoa: '919880' },
   })
 
   const operador = await prisma.usuario.upsert({
     where: { email: 'operador.ti@iec.edu.br' },
-    update: { codigoPessoa: '288319' },
-    create: { nome: 'Operador TI', email: 'operador.ti@iec.edu.br', senhaHash, perfil: 'OPERADOR_TI', codigoPessoa: '288319' },
+    update: { codigoPessoa: '1404149' },
+    create: { nome: 'Operador TI', email: 'operador.ti@iec.edu.br', senhaHash, perfil: 'OPERADOR_TI', codigoPessoa: '1404149' },
   })
 
   const apoio = await prisma.usuario.upsert({

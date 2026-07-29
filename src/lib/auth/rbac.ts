@@ -32,6 +32,12 @@ export const permissoes = {
     editar: [Perfil.ADMINISTRADOR],
     deletar:[Perfil.ADMINISTRADOR],
   },
+  // Solicitações de acesso (auto-cadastro): revisão restrita a quem já gerencia usuários
+  solicitacoesAcesso: {
+    listar: [Perfil.ADMINISTRADOR],
+    aprovar:[Perfil.ADMINISTRADOR],
+    negar:  [Perfil.ADMINISTRADOR],
+  },
   integracoes: {
     configurar: [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],
     logs:       [Perfil.OPERADOR_TI, Perfil.ADMINISTRADOR],

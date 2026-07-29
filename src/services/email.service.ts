@@ -8,7 +8,9 @@ interface ReservaEmailInfo {
   modalidadeReserva: string
   softwaresUtilizados: string
   numeroAlunos: number
-  solicitante: { nome: string; email: string }
+  nomeSolicitanteExterno: string | null
+  emailSolicitanteExterno: string | null
+  solicitante: { nome: string; email: string } | null
   professor: { nome: string; email: string }
   turma: { codigo: string; nome: string; curso: string; semestre: string; numOferta: string | null }
   laboratorio: { nome: string | null; codigo: string | null; localizacao: string | null } | null
@@ -72,7 +74,7 @@ function montarResumoReserva(reserva: ReservaEmailInfo): string {
     `Nº alunos: ${reserva.numeroAlunos}`,
     `Softwares: ${reserva.softwaresUtilizados}`,
     '',
-    `Solicitante: ${reserva.solicitante.nome} (${reserva.solicitante.email})`,
+    `Solicitante: ${reserva.nomeSolicitanteExterno ?? reserva.solicitante?.nome ?? 'Desconhecido'} (${reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? 'Sem email'})`,
   ].join('\n')
 }
 
@@ -137,6 +139,8 @@ async function carregarReservaEmailInfo(reservaId: string): Promise<ReservaEmail
       modalidadeReserva: true,
       softwaresUtilizados: true,
       numeroAlunos: true,
+      nomeSolicitanteExterno: true,
+      emailSolicitanteExterno: true,
       solicitante: { select: { nome: true, email: true } },
       professor: { select: { nome: true, email: true } },
       turma: { select: { codigo: true, nome: true, curso: true, semestre: true, numOferta: true } },
@@ -194,8 +198,8 @@ export class EmailService {
         semestre: reserva.turma.semestre,
         numeroAlunos: reserva.numeroAlunos,
         softwares: reserva.softwaresUtilizados,
-        solicitante: reserva.solicitante.nome,
-        solicitanteEmail: reserva.solicitante.email,
+        solicitante: reserva.nomeSolicitanteExterno ?? reserva.solicitante?.nome ?? 'Desconhecido',
+        solicitanteEmail: reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? 'desconhecido@pucminas.br',
         datas: montarDatasEstruturadas(reserva.datas),
       }
       console.log('[Email] Payload dados:', JSON.stringify(dados))
@@ -236,8 +240,8 @@ export class EmailService {
         semestre: reserva.turma.semestre,
         numeroAlunos: reserva.numeroAlunos,
         softwares: reserva.softwaresUtilizados,
-        solicitante: reserva.solicitante.nome,
-        solicitanteEmail: reserva.solicitante.email,
+        solicitante: reserva.nomeSolicitanteExterno ?? reserva.solicitante?.nome ?? 'Desconhecido',
+        solicitanteEmail: reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? 'desconhecido@pucminas.br',
         datas: montarDatasEstruturadas(reserva.datas),
       }
       console.log('[Email] Payload dados.datas:', JSON.stringify(dados.datas))
