@@ -29,15 +29,7 @@ export async function POST(req: Request) {
     // 3. Criar a reserva sem solicitanteId (opcional no service)
     const reserva = await ReservaService.criar(input)
 
-    // 4. Integrações (fire and forget)
-    // Usamos um ID de sistema/fallback temporário ou indefinido para operadorId,
-    // pois a reserva foi criada por sistema, não operador.
-    // Como notificarCriacao e historico exigem operadorId em alguns pontos de auditoria,
-    // o integracoes service lidará com isso com o fallback fallbackCodigoPessoa se não for um cuid válido.
-    IntegracoesService.notificarCriacao(reserva.id, 'SISTEMA').catch((err) =>
-      console.error('[Webhook] Erro ao notificar integrações (fire and forget):', err)
-    )
-
+    // 4. Criação concluída (integrações foram movidas para disparo manual)
     return NextResponse.json({ sucesso: true, reserva }, { status: 201 })
   } catch (error) {
     console.error('[Webhook] Falha na criação:', error)

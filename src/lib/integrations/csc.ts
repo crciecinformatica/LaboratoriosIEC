@@ -50,7 +50,7 @@ const criarClienteCSC = () => {
   const httpsAgent = new https.Agent(agentOptions)
 
   const client = axios.create({
-    timeout: 15000,
+    timeout: 45000,
     httpsAgent,
   })
 

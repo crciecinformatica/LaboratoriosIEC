@@ -37,10 +37,6 @@ export async function POST(req: NextRequest) {
       ip:         extrairIp(req),
     }).catch((e) => console.error('[AuditLog]', e))
 
-    // Notificação CSC + Teams (apenas na criação, conforme regra de negócio)
-    IntegracoesService.notificarCriacao(reserva.id, session.user.id)
-      .catch((err) => console.error('[Sprint5] Falha notificarCriacao:', err))
-
     return NextResponse.json(reserva, { status: 201 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro ao criar reserva'

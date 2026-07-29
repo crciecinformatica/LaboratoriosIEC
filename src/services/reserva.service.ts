@@ -12,9 +12,9 @@ import type {
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
-// Converte "YYYY-MM-DD" → Date (meia-noite UTC)
+// Converte "YYYY-MM-DD" → Date (meio-dia UTC)
 function parseDia(dia: string): Date {
-  return new Date(`${dia}T00:00:00.000Z`)
+  return new Date(`${dia}T12:00:00.000Z`)
 }
 
 export class ReservaService {

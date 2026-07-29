@@ -10,6 +10,7 @@ import {
   useRejectReserva,
   useReagendarReserva,
   useUploadAnexo,
+  useIntegracoesReserva,
   type DataHorario,
 } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
@@ -20,7 +21,7 @@ import { statusLabel, statusColor, modalidadeLabel } from '@/types'
 import type { StatusReserva } from '@prisma/client'
 import {
   ChevronLeft, Loader2, CalendarDays,
-  Paperclip, Upload, FileText, Check, X, AlertTriangle, Plus, Trash2,
+  Paperclip, Upload, FileText, Check, X, AlertTriangle, Plus, Trash2, RefreshCw,
 } from 'lucide-react'
 
 const colorMap: Record<string, string> = {
@@ -160,6 +161,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   const rejeitar  = useRejectReserva()
   const reagendar = useReagendarReserva()
   const upload    = useUploadAnexo(id)
+  const integracoes = useIntegracoesReserva()
 
   const [labId,  setLabId]  = useState('')
   const [motivo, setMotivo] = useState('')
@@ -180,6 +182,15 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       toast.success('Reserva confirmada!')
     } catch (e: unknown) {
       toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao confirmar')
+    }
+  }
+
+  async function handleIntegracoes() {
+    try {
+      await integracoes.mutateAsync(id)
+      toast.success('Chamado CSC e integração Teams acionados!')
+    } catch (e: unknown) {
+      toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao acionar integrações')
     }
   }
 
@@ -237,9 +248,9 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   const podeAgir     = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
   const podeConflito = isOperador && reserva.status === 'AGUARDANDO_CONFIRMACAO'
   const podeCorrigir = reserva.status === 'CONFLITO_DE_DATAS' &&
-    (reserva.solicitante.id === session?.user.id ||
+    (reserva.solicitante?.id === session?.user.id ||
       ['ADMINISTRADOR', 'APOIO_ACADEMICO'].includes(session?.user.perfil ?? ''))
-  const podeAnexar = reserva.solicitante.id === session?.user.id || session?.user.perfil === 'ADMINISTRADOR'
+  const podeAnexar = reserva.solicitante?.id === session?.user.id || session?.user.perfil === 'ADMINISTRADOR'
 
   const datasEmConflito = reserva.datas.filter((d) => d.emConflito)
 
@@ -406,6 +417,26 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
           <button className="btn-danger btn-sm self-start" onClick={handleRejeitar} disabled={rejeitar.isPending}>
             <X className="w-3.5 h-3.5" /> Rejeitar
           </button>
+        </div>
+      )}
+
+      {podeAgir && (
+        <div className="flex flex-col gap-4 p-5 border rounded-lg bg-card mt-6">
+          <div className="flex flex-col gap-2">
+            <h3 className="font-semibold text-foreground text-sm">Integrações de Sistema</h3>
+            {!reserva.cscProtocolo ? (
+              <button 
+                className="btn-primary btn-sm self-start" 
+                onClick={handleIntegracoes} 
+                disabled={integracoes.isPending}
+              >
+                {integracoes.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <RefreshCw className="w-3.5 h-3.5" />}
+                Registrar Chamado CSC e Teams
+              </button>
+            ) : (
+              <p className="text-sm text-green-600 font-medium">Integrações concluídas (Protocolo: {reserva.cscProtocolo})</p>
+            )}
+          </div>
         </div>
       )}
 

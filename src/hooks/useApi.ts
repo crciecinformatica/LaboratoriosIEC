@@ -126,6 +126,19 @@ export function useDeleteTurma() {
   })
 }
 
+export function useIntegracoesReserva() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (reservaId: string) => axios.post('/api/reservas/integracoes', { reservaId }).then((r) => r.data),
+    onSuccess: (_, reservaId) => {
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+      qc.invalidateQueries({ queryKey: ['reserva', reservaId] })
+    },
+  })
+}
+
+// ─── Conflitos ─────────────────────────────────────────────────────────────────
+
 // ─── Usuários ─────────────────────────────────────────────────────────────────
 
 export function useUsuarios(search = '', page = 1, limit = DEFAULT_LIMIT) {
