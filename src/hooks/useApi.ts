@@ -436,7 +436,9 @@ type ReservaDetalhe = ReservaResumo & {
   numeroAlunos: number
   motivoRejeicao: string | null
   cscProtocolo: string | null
-  solicitante: { id: string; nome: string; email: string }
+  nomeSolicitanteExterno: string | null
+  emailSolicitanteExterno: string | null
+  solicitante: { id: string; nome: string; email: string } | null
   professor: { id: string; nome: string; email: string; matricula: string | null; telefone: string | null }
   turma: {
     id: string; codigo: string; nome: string; semestre: string

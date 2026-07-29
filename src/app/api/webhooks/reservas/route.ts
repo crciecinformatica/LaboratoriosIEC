@@ -22,30 +22,48 @@ export async function POST(req: Request) {
       try {
         const parsedAi = typeof body.ai_payload === 'string' ? JSON.parse(body.ai_payload) : body.ai_payload
         
+        const extractVal = (obj: any) => obj?.value !== undefined ? obj.value : obj
+        
+        let dataSemestre: string | undefined = undefined
+
         // Verifica se a IA usou o formato encapsulado (extracted_data)
         if (parsedAi.extracted_data) {
-          const ed = parsedAi.extracted_data
-          const extractVal = (obj: any) => obj?.value !== undefined ? obj.value : obj
+          const edLocal = parsedAi.extracted_data
+          dataSemestre = edLocal.turmaManual ? extractVal(edLocal.turmaManual.semestre) : undefined
+        } else {
+          dataSemestre = parsedAi.turmaManual ? parsedAi.turmaManual.semestre : undefined
+        }
+
+        // Lógica de inferência para semestre caso não venha ou venha vazio
+        if (!dataSemestre || dataSemestre.trim() === '') {
+          const hoje = new Date()
+          dataSemestre = `${hoje.getFullYear()}/${hoje.getMonth() >= 6 ? '2' : '1'}`
+        }
+
+        if (parsedAi.extracted_data) {
+          const edLocal = parsedAi.extracted_data
           
           dataToParse = {
             nomeSolicitanteExterno: body.nomeSolicitanteExterno,
             emailSolicitanteExterno: body.emailSolicitanteExterno,
-            titulo: extractVal(ed.titulo),
-            modalidadeReserva: extractVal(ed.modalidadeReserva),
-            numeroAlunos: Number(extractVal(ed.numeroAlunos)),
-            softwaresUtilizados: extractVal(ed.softwaresUtilizados),
-            datas: extractVal(ed.datas),
-            professorManual: ed.professorManual ? {
-              nome: extractVal(ed.professorManual.nome),
-              email: extractVal(ed.professorManual.email),
-              matricula: String(extractVal(ed.professorManual.matricula) || ''),
+            titulo: extractVal(edLocal.titulo),
+            modalidadeReserva: extractVal(edLocal.modalidadeReserva),
+            numeroAlunos: Number(extractVal(edLocal.numeroAlunos)),
+            softwaresUtilizados: extractVal(edLocal.softwaresUtilizados),
+            datas: extractVal(edLocal.datas),
+            professorManual: edLocal.professorManual ? {
+              nome: extractVal(edLocal.professorManual.nome),
+              email: extractVal(edLocal.professorManual.email),
+              matricula: String(extractVal(edLocal.professorManual.matricula) || ''),
+              telefone: extractVal(edLocal.professorManual.telefone) || undefined,
             } : undefined,
-            turmaManual: ed.turmaManual ? {
-              codigo: String(extractVal(ed.turmaManual.codigo) || ''),
-              nome: extractVal(ed.turmaManual.nome),
-              curso: extractVal(ed.turmaManual.curso),
-              codigoDisciplina: String(extractVal(ed.turmaManual.codigoDisciplina) || ''),
-              semestre: extractVal(ed.turmaManual.semestre),
+            turmaManual: edLocal.turmaManual ? {
+              codigo: String(extractVal(edLocal.turmaManual.codigo) || ''),
+              nome: extractVal(edLocal.turmaManual.nome),
+              curso: extractVal(edLocal.turmaManual.curso),
+              codigoDisciplina: String(extractVal(edLocal.turmaManual.codigoDisciplina) || ''),
+              semestre: dataSemestre,
+              numOferta: String(extractVal(edLocal.turmaManual.numOferta) || ''),
             } : undefined
           }
         } else {
@@ -54,6 +72,9 @@ export async function POST(req: Request) {
             nomeSolicitanteExterno: body.nomeSolicitanteExterno,
             emailSolicitanteExterno: body.emailSolicitanteExterno,
             ...parsedAi
+          }
+          if (dataToParse.turmaManual && (!dataToParse.turmaManual.semestre || dataToParse.turmaManual.semestre.trim() === '')) {
+            dataToParse.turmaManual.semestre = dataSemestre
           }
         }
       } catch (err) {

@@ -128,7 +128,7 @@ export default function TurmasPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Código</th>
+                <th>Número da turma</th>
                 <th>Disciplina</th>
                 <th>Curso</th>
                 <th>Semestre</th>
@@ -193,7 +193,7 @@ export default function TurmasPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-4 flex flex-col gap-4">
           <div className="form-row">
             <div className="form-group">
-              <label className="label">Código <span className="text-red-500">*</span></label>
+              <label className="label">Número da turma <span className="text-red-500">*</span></label>
               <input {...register('codigo')} className="input" placeholder="INFO-2025-01" />
               {errors.codigo && <p className="error-msg">{errors.codigo.message}</p>}
             </div>

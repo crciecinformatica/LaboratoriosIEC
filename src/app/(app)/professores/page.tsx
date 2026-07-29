@@ -128,7 +128,7 @@ export default function ProfessoresPage() {
               <tr>
                 <th>Nome</th>
                 <th>Email</th>
-                <th>Matrícula</th>
+                <th>Código de pessoa / Matrícula</th>
                 <th>Telefone</th>
                 <th>Departamento</th>
                 <th>Turmas / Reservas</th>
@@ -207,7 +207,7 @@ export default function ProfessoresPage() {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="label">Matrícula</label>
+              <label className="label">Código de pessoa / Matrícula</label>
               <input {...register('matricula')} className="input" placeholder="12345" />
             </div>
             <div className="form-group">
