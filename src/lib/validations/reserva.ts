@@ -263,6 +263,11 @@ export type NegarSolicitacaoAcessoInput   = z.infer<typeof negarSolicitacaoAcess
 export const criarReservaWebhookSchema = criarReservaBaseObject.extend({
   nomeSolicitanteExterno: z.string().min(3, 'Nome do solicitante é obrigatório no webhook').max(100),
   emailSolicitanteExterno: z.string().email('Email do solicitante inválido no webhook'),
+  anexos: z.array(z.object({
+    nome: z.string(),
+    conteudoBase64: z.string(),
+    mimeType: z.string()
+  })).optional(),
 }).superRefine((data, ctx) => {
   if (!data.professorId && !data.professorManual)
     ctx.addIssue({ code: 'custom', message: 'Professor obrigatório', path: ['professorId'] })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { criarReservaWebhookSchema } from '@/lib/validations/reserva'
 import { ReservaService } from '@/services/reserva.service'
+import { AnexoService } from '@/services/anexo.service'
 import { IntegracoesService } from '@/services/integracao.service'
 
 export async function POST(req: Request) {
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
           dataToParse = {
             nomeSolicitanteExterno: body.nomeSolicitanteExterno,
             emailSolicitanteExterno: body.emailSolicitanteExterno,
+            anexos: body.anexos,
             ...parsedAi
           }
           if (dataToParse.turmaManual && (!dataToParse.turmaManual.semestre || dataToParse.turmaManual.semestre.trim() === '')) {
@@ -96,6 +98,18 @@ export async function POST(req: Request) {
 
     // 3. Criar a reserva sem solicitanteId (opcional no service)
     const reserva = await ReservaService.criar(input)
+
+    // Processar anexos, se houver
+    if (input.anexos && input.anexos.length > 0) {
+      for (const anexo of input.anexos) {
+        try {
+          const buffer = Buffer.from(anexo.conteudoBase64, 'base64')
+          await AnexoService.upload(reserva.id, buffer, anexo.nome, anexo.mimeType, buffer.length)
+        } catch (e) {
+          console.error('[Webhook] Falha ao fazer upload do anexo', anexo.nome, e)
+        }
+      }
+    }
 
     // 4. Criação concluída (integrações foram movidas para disparo manual)
     return NextResponse.json({ sucesso: true, reserva }, { status: 201 })
