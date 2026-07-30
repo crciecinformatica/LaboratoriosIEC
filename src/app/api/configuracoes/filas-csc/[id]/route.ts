@@ -5,7 +5,8 @@ import { prisma } from '@/lib/prisma/client'
 import { editarFilaChamadoSchema } from '@/lib/validations/configuracao'
 import { registrarLog, extrairIp } from '@/lib/audit/log-operacao'
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
@@ -22,21 +23,21 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   if (parse.data.flexfield) {
     const existe = await prisma.filaChamado.findUnique({ where: { flexfield: parse.data.flexfield } })
-    if (existe && existe.id !== params.id) {
+    if (existe && existe.id !== id) {
       return NextResponse.json({ error: 'Flexfield já em uso' }, { status: 409 })
     }
   }
 
   try {
     const fila = await prisma.filaChamado.update({
-      where: { id: params.id },
+      where: { id },
       data: parse.data,
     })
 
     registrarLog({
       usuarioId:  session.user.id,
-      acao:       'ATUALIZAR',
-      entidade:   'SISTEMA',
+      acao:       'EDITAR',
+      entidade:   'FILA_CHAMADO',
       entidadeId: fila.id,
       descricao:  `Atualizou Fila CSC "${fila.nome}" (${fila.flexfield})`,
       ip:         extrairIp(req),
@@ -48,7 +49,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
@@ -58,13 +60,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
   try {
     const fila = await prisma.filaChamado.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     registrarLog({
       usuarioId:  session.user.id,
       acao:       'EXCLUIR',
-      entidade:   'SISTEMA',
+      entidade:   'FILA_CHAMADO',
       entidadeId: fila.id,
       descricao:  `Excluiu Fila CSC "${fila.nome}"`,
       ip:         extrairIp(req),

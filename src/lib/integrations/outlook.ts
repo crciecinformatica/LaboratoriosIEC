@@ -39,7 +39,7 @@ export async function sendOutlookEmail(params: SendOutlookEmailParams): Promise<
   const url = getFlowUrl(flow)
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15000)
+  const timeout = setTimeout(() => controller.abort(), 30000)
 
   try {
     const resp = await fetch(url, {
@@ -59,7 +59,7 @@ export async function sendOutlookEmail(params: SendOutlookEmailParams): Promise<
   } catch (error) {
     if (error instanceof OutlookEmailError) throw error
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new OutlookEmailError('Timeout ao enviar email via Power Automate (15s).')
+      throw new OutlookEmailError('Timeout ao enviar email via Power Automate (30s).')
     }
     throw new OutlookEmailError(
       `Falha ao enviar email via Power Automate: ${error instanceof Error ? error.message : String(error)}`,

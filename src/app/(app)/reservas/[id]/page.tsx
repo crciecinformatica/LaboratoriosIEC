@@ -11,6 +11,7 @@ import {
   useReagendarReserva,
   useUploadAnexo,
   useIntegracoesReserva,
+  useFilasChamados,
   type DataHorario,
 } from '@/hooks/useApi'
 import { useToast } from '@/components/ui/layout/toast'
@@ -165,7 +166,12 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
 
   const [labId,  setLabId]  = useState('')
   const [motivo, setMotivo] = useState('')
-  const [modalConflito,  setModalConflito]  = useState(false)
+  const [modalConflitoAberto, setModalConflitoAberto] = useState(false)
+  
+  const [modalIntegracoesAberto, setModalIntegracoesAberto] = useState(false)
+  const [filaSelecionada, setFilaSelecionada] = useState<string>('')
+  const { data: filasData, isLoading: isLoadingFilas } = useFilasChamados(true)
+
   const [modalReagendar, setModalReagendar] = useState(false)
 
   const [novasDatas, setNovasDatas] = useState<DataForm[]>([
@@ -185,12 +191,18 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
     }
   }
 
-  async function handleIntegracoes() {
+  async function handleIntegracoes(e: React.FormEvent) {
+    e.preventDefault()
+    if (!filaSelecionada) {
+      toast.error('Selecione uma fila de destino.')
+      return
+    }
     try {
-      await integracoes.mutateAsync(id)
-      toast.success('Chamado CSC e integração Teams acionados!')
+      await integracoes.mutateAsync({ reservaId: id, flexfieldDestino: filaSelecionada })
+      toast.success('Solicitação realizada!')
+      setModalIntegracoesAberto(false)
     } catch (e: unknown) {
-      toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao acionar integrações')
+      toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao realizar solicitação')
     }
   }
 
@@ -408,7 +420,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
           </div>
           {podeConflito && (
             <div>
-              <button className="btn-secondary btn-sm" onClick={() => setModalConflito(true)}>
+              <button className="btn-secondary btn-sm" onClick={() => setModalConflitoAberto(true)}>
                 <AlertTriangle className="w-3.5 h-3.5" /> Marcar conflito de datas
               </button>
             </div>
@@ -432,11 +444,10 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
             {!reserva.cscProtocolo ? (
               <button 
                 className="btn-primary btn-sm self-start" 
-                onClick={handleIntegracoes} 
-                disabled={integracoes.isPending}
+                onClick={() => setModalIntegracoesAberto(true)} 
               >
-                {integracoes.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <RefreshCw className="w-3.5 h-3.5" />}
-                Registrar Chamado CSC e Teams
+                <RefreshCw className="w-3.5 h-3.5" />
+                Realizar Solicitação
               </button>
             ) : (
               <p className="text-sm text-green-600 font-medium">Integrações concluídas (Protocolo: {reserva.cscProtocolo})</p>
@@ -446,12 +457,49 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       )}
 
       <MarcarConflitoDialog
-        open={modalConflito}
-        onClose={() => setModalConflito(false)}
+        open={modalConflitoAberto}
+        onClose={() => setModalConflitoAberto(false)}
         reservaId={id}
         datas={reserva.datas}
-        onSucesso={() => setModalConflito(false)}
+        onSucesso={() => setModalConflitoAberto(false)}
       />
+
+      <Modal open={modalIntegracoesAberto} onClose={() => setModalIntegracoesAberto(false)} title="Realizar Solicitação">
+        <form onSubmit={handleIntegracoes} className="px-6 py-4 flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Selecione a Fila CSC para a qual o chamado externo será aberto.
+          </p>
+          <div className="form-group">
+            <label className="label">Fila CSC de Destino</label>
+            <select
+              required
+              className="input"
+              value={filaSelecionada}
+              onChange={(e) => setFilaSelecionada(e.target.value)}
+              disabled={isLoadingFilas}
+            >
+              <option value="" disabled>Selecione...</option>
+              {filasData?.filas.map((fila) => (
+                <option key={fila.id} value={fila.flexfield}>
+                  {fila.nome} ({fila.flexfield})
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-6">
+            <button type="button" className="btn-secondary" onClick={() => setModalIntegracoesAberto(false)}>Cancelar</button>
+            <button type="submit" className="btn-primary" disabled={integracoes.isPending || !filaSelecionada}>
+              {integracoes.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4 mr-2" />
+              )}
+              Enviar
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={modalReagendar} onClose={() => setModalReagendar(false)} title="Reagendar após conflito" size="md">
         <div className="px-6 py-4 flex flex-col gap-4">

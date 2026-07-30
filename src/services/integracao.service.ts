@@ -61,7 +61,7 @@ function sanitizeForJson(value: unknown): Prisma.InputJsonValue {
  */
 export class IntegracoesService {
 
-  static async notificarCriacao(reservaId: string, operadorId: string): Promise<void> {
+  static async notificarCriacao(reservaId: string, operadorId: string, flexfieldDestino: string, disparaTeams: boolean): Promise<void> {
     const reserva = await prisma.solicitacaoReserva.findUniqueOrThrow({
       where: { id: reservaId },
       include: {
@@ -143,48 +143,46 @@ export class IntegracoesService {
       }
     }
 
-    // Ticket B (Praça da Liberdade) — APENAS para PRESENCIAL se o flexfield estiver configurado no .env
-    let protocoloPracaLiberdade: string | undefined
-    if (reserva.modalidadeReserva === 'PRESENCIAL' && config.flexFieldPraca) {
-      try {
-        const resp = await abrirChamadoCSC({
-          descricao: descricaoCSC,
-          loginSolicitante,
-          flexField103: config.flexFieldPraca,
-        })
-        protocoloPracaLiberdade = resp.protocolo
+    // Ticket B (Externo) — Utiliza o flexfieldDestino escolhido pelo usuário
+    let protocoloExterno: string | undefined
+    try {
+      const resp = await abrirChamadoCSC({
+        descricao: descricaoCSC,
+        loginSolicitante,
+        flexField103: flexfieldDestino,
+      })
+      protocoloExterno = resp.protocolo
 
-        await prisma.solicitacaoReserva.update({ where: { id: reservaId }, data: { cscProtocoloPracaLiberdade: protocoloPracaLiberdade } })
-        await prisma.historicoTramitacao.create({
-          data: { reservaId, usuarioId: operadorId, evento: TipoEvento.ENVIO_CSC, metadados: { protocolo: protocoloPracaLiberdade, fila: 'PRACA_LIBERDADE' } },
-        })
-        await prisma.logIntegracao.create({
-          data: {
-            servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST', statusHttp: 200,
-            payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
-            resposta: { protocolo: protocoloPracaLiberdade },
-          },
-        })
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        await prisma.logIntegracao.create({
-          data: {
-            servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST',
-            statusHttp: err instanceof CscApiError ? err.statusHttp : undefined,
-            payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
-            erro: msg,
-            ...(err instanceof CscApiError && err.responseBody ? { resposta: sanitizeForJson(err.responseBody) } : {}),
-          },
-        })
-        console.error('[CSC_PRACA_LIBERDADE] Falha ao abrir chamado:', msg)
-      }
+      await prisma.solicitacaoReserva.update({ where: { id: reservaId }, data: { cscProtocoloPracaLiberdade: protocoloExterno } })
+      await prisma.historicoTramitacao.create({
+        data: { reservaId, usuarioId: operadorId, evento: TipoEvento.ENVIO_CSC, metadados: { protocolo: protocoloExterno, fila: 'EXTERNO', flexfield: flexfieldDestino } },
+      })
+      await prisma.logIntegracao.create({
+        data: {
+          servico: 'CSC_EXTERNO', endpoint: config.apiUrl ?? '', metodo: 'POST', statusHttp: 200,
+          payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado, flexField103: flexfieldDestino },
+          resposta: { protocolo: protocoloExterno },
+        },
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      await prisma.logIntegracao.create({
+        data: {
+          servico: 'CSC_EXTERNO', endpoint: config.apiUrl ?? '', metodo: 'POST',
+          statusHttp: err instanceof CscApiError ? err.statusHttp : undefined,
+          payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado, flexField103: flexfieldDestino },
+          erro: msg,
+          ...(err instanceof CscApiError && err.responseBody ? { resposta: sanitizeForJson(err.responseBody) } : {}),
+        },
+      })
+      console.error('[CSC_EXTERNO] Falha ao abrir chamado:', msg)
     }
 
-    // Teams card — Envia com protocolo da Praça (prioridade) ou IEC (fallback)
-    const protocoloParaTeams = protocoloPracaLiberdade || protocoloIec
-    if (protocoloParaTeams) {
+    // Teams card — Envia APENAS se a fila estiver configurada para disparar Teams (ex: 1381 - Praça da Liberdade)
+    // O fallback foi removido: só envia se o protocolo externo existir.
+    if (disparaTeams && protocoloExterno) {
       await this._enviarTeams(reservaId, operadorId,
-        this._montarPayloadTeams(reserva, 'CRIACAO', { cscProtocolo: protocoloParaTeams }))
+        this._montarPayloadTeams(reserva, 'CRIACAO', { cscProtocolo: protocoloExterno }))
     }
   }
 

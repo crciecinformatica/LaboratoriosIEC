@@ -9,6 +9,7 @@ import { z } from 'zod'
 
 const schema = z.object({
   reservaId: z.string().cuid(),
+  flexfieldDestino: z.string().min(1, 'Selecione uma fila'),
 })
 
 export async function POST(req: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Dados inválidos', detalhes: parse.error.flatten() }, { status: 422 })
     }
 
-    const { reservaId } = parse.data
+    const { reservaId, flexfieldDestino } = parse.data
 
     const reserva = await prisma.solicitacaoReserva.findUnique({
       where: { id: reservaId },
@@ -47,8 +48,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Chamado CSC já foi aberto para esta reserva' }, { status: 400 })
     }
 
+    const fila = await prisma.filaChamado.findUnique({
+      where: { flexfield: flexfieldDestino }
+    })
+
+    if (!fila) {
+      return NextResponse.json({ error: 'Fila informada não existe' }, { status: 400 })
+    }
+
     // Chama o serviço (síncrono, aguardando resposta do CSC)
-    await IntegracoesService.notificarCriacao(reservaId, session.user.id)
+    await IntegracoesService.notificarCriacao(reservaId, session.user.id, flexfieldDestino, fila.disparaTeams)
 
     // Log de auditoria
     registrarLog({

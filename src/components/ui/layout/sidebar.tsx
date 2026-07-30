@@ -73,13 +73,15 @@ export function Sidebar({ perfil }: { perfil: Perfil }) {
       </nav>
 
       <div className="px-3 py-3 border-t border-border flex items-center justify-evenly gap-4">
-        <Link
-          href="/configuracoes"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition"
-        >
-          <Settings className="w-4 h-4" />
-          Configurações
-        </Link>
+        {['ADMINISTRADOR', 'OPERADOR_TI'].includes(perfil) && (
+          <Link
+            href="/configuracoes"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition"
+          >
+            <Settings className="w-4 h-4" />
+            Configurações
+          </Link>
+        )}
         <ModeToggle />
       </div>
     </aside>

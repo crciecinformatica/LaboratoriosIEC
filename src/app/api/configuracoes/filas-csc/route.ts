@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   registrarLog({
     usuarioId:  session.user.id,
     acao:       'CRIAR',
-    entidade:   'SISTEMA',
+    entidade:   'FILA_CHAMADO',
     entidadeId: fila.id,
     descricao:  `Criou Fila CSC "${fila.nome}" (${fila.flexfield})`,
     ip:         extrairIp(req),

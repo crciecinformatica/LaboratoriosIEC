@@ -58,9 +58,10 @@ export async function POST(req: NextRequest) {
         }
       })
 
-    EmailService.sendReservaRejeicaoEmail(reservaId, session.user.id, motivoRejeicao)
+    // Outlook email de rejeição
+    await EmailService.sendReservaRejeicaoEmail(reservaId, session.user.id, motivoRejeicao)
       .catch((err: unknown) => {
-        console.error('[Email] Falha no envio de rejeição:', err)
+        console.error('[Outlook Email] Falha inesperada ao enviar rejeição:', err)
       })
 
     return NextResponse.json({ ok: true })

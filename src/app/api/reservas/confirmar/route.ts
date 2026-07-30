@@ -85,21 +85,19 @@ export async function POST(req: NextRequest) {
       ip:         extrairIp(req),
     }).catch((e) => console.error('[AuditLog]', e))
 
-    // Google Calendar (fora da tx)
-    GoogleCalendarService.criarEventoReserva(reservaId, session.user.id)
-      .catch((err: unknown) => {
+    // Google Calendar e Outlook precisam ser aguardados para não serem cancelados prematuramente pelo Next.js
+    await Promise.allSettled([
+      GoogleCalendarService.criarEventoReserva(reservaId, session.user.id).catch((err: unknown) => {
         if (err instanceof GoogleCalendarError) {
-          console.error('[Sprint6] Falha Google Calendar (confirmar):', err.message)
+          console.error('[Google Calendar] Falha ao confirmar:', err.message)
         } else {
-          console.error('[Sprint6] Erro inesperado Google Calendar:', err)
+          console.error('[Google Calendar] Erro inesperado:', err)
         }
+      }),
+      EmailService.sendReservaConfirmacaoEmail(reservaId, session.user.id).catch((err: unknown) => {
+        console.error('[Outlook Email] Falha inesperada ao enviar confirmação:', err)
       })
-
-    // Outlook email de confirmação (fora da tx)
-    EmailService.sendReservaConfirmacaoEmail(reservaId, session.user.id)
-      .catch((err: unknown) => {
-        console.error('[Email] Falha no envio de confirmação:', err)
-      })
+    ])
 
     return NextResponse.json({ ok: true })
 

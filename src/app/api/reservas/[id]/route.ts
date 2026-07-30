@@ -64,8 +64,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   try {
-      // Remove eventos do Google Calendar (aguarda completar antes de excluir a reserva
-      // para que o historicoTramitacao possa ser criado com a reservaId válida)
+      // Remove eventos do Google Calendar (precisa ser aguardado)
       await GoogleCalendarService.deletarEventoReserva(id, session.user.id)
         .catch((err: unknown) => {
           if (err instanceof GoogleCalendarError) {

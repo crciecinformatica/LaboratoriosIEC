@@ -124,7 +124,7 @@ describe('IntegracoesService.notificarCriacao', () => {
     ;(cscModule.abrirChamadoCSC as jest.Mock)
       .mockResolvedValue({ protocolo: 'CSC-IEC-001', raw: {} })
 
-    await IntegracoesService.notificarCriacao('res-1', 'op-1')
+    await IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)
 
     // Ticket A chamado com flex 2307
     expect(cscModule.abrirChamadoCSC).toHaveBeenCalledTimes(1)
@@ -170,7 +170,7 @@ describe('IntegracoesService.notificarCriacao', () => {
     ;(cscModule.abrirChamadoCSC as jest.Mock)
       .mockResolvedValue({ protocolo: 'CSC-IEC-002', raw: {} })
 
-    await IntegracoesService.notificarCriacao('res-1', 'op-1')
+    await IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)
 
     // Ticket A chamado com flex 2307
     expect(cscModule.abrirChamadoCSC).toHaveBeenCalledTimes(1)
@@ -187,7 +187,7 @@ describe('IntegracoesService.notificarCriacao', () => {
     ;(prisma.usuario.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'op-1', codigoPessoa: null })
     ;(cscModule.abrirChamadoCSC as jest.Mock).mockResolvedValue({ protocolo: 'CSC-IEC-003', raw: {} })
 
-    await IntegracoesService.notificarCriacao('res-1', 'op-1')
+    await IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)
 
     // Ticket A chamado com loginSolicitante = fallback
     expect(cscModule.abrirChamadoCSC).toHaveBeenCalledWith(
@@ -216,7 +216,7 @@ describe('IntegracoesService.notificarCriacao', () => {
         .mockResolvedValueOnce({ protocolo: 'CSC-PL-001', raw: {} })    // Ticket B
       ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
-      await IntegracoesService.notificarCriacao('res-1', 'op-1')
+      await IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)
 
       // Ticket A (CSC IEC) - flex 2307
       expect(cscModule.abrirChamadoCSC).toHaveBeenNthCalledWith(1,
@@ -282,7 +282,7 @@ describe('IntegracoesService.notificarCriacao', () => {
       ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
     // Não deve lançar exceção
-    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).resolves.not.toThrow()
+    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)).resolves.not.toThrow()
 
     // Ticket A chamado e falhou
     expect(cscModule.abrirChamadoCSC).toHaveBeenNthCalledWith(1,
@@ -330,7 +330,7 @@ describe('IntegracoesService.notificarCriacao', () => {
         ;(cscModule.abrirChamadoCSC as jest.Mock).mockResolvedValue({ protocolo: 'CSC-IEC-007', raw: {} })
         ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
-        await IntegracoesService.notificarCriacao('res-1', 'op-1')
+        await IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)
 
         // Ticket A chamado com flex 2307
         expect(cscModule.abrirChamadoCSC).toHaveBeenCalledTimes(1)
@@ -387,7 +387,7 @@ describe('IntegracoesService.notificarCriacao', () => {
               ;(cscModule.abrirChamadoCSC as jest.Mock).mockResolvedValue({ protocolo: 'CSC-IEC-008', raw: {} })
               ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
-              await IntegracoesService.notificarCriacao('res-1', 'op-1')
+              await IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)
 
               // Ticket A chamado com flex 2307
               expect(cscModule.abrirChamadoCSC).toHaveBeenCalledTimes(1)
@@ -437,7 +437,7 @@ describe('IntegracoesService.notificarCriacao', () => {
       ;(teamsModule.notificarTeams as jest.Mock).mockResolvedValue(undefined)
 
     // Não deve lançar exceção
-    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).resolves.not.toThrow()
+    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)).resolves.not.toThrow()
 
     // Ticket A sucesso
     expect(cscModule.abrirChamadoCSC).toHaveBeenNthCalledWith(1,
@@ -486,7 +486,7 @@ describe('IntegracoesService.notificarCriacao', () => {
       )
 
     // Não deve lançar — Teams é fire-and-forget
-    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1')).resolves.not.toThrow()
+    await expect(IntegracoesService.notificarCriacao('res-1', 'op-1', '1381', true)).resolves.not.toThrow()
 
     expect(prisma.logIntegracao.create).toHaveBeenCalledWith(
       expect.objectContaining({
