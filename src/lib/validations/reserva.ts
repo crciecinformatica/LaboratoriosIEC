@@ -168,6 +168,7 @@ export const criarLaboratorioSchema = z.object({
   codigo:     z.string().min(2).max(20),
   capacidade: z.number({ error: 'Informe a capacidade' }).int().min(1).max(500),
   recursos:   z.array(z.string()).default([]),
+  softwares:  z.array(z.string()).default([]),
   localizacao:z.string().max(200).optional(),
   // ID da agenda do Google Calendar correspondente a este laboratório
   // (ex: "abc123@group.calendar.google.com"). Opcional — laboratórios sem

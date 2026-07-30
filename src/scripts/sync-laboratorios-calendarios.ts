@@ -158,6 +158,7 @@ async function main() {
         nome:             lab.nome,
         capacidade:       capacidadeFinal,
         recursos:         ['Computadores'],
+        softwares:        [],
         localizacao:      lab.localizacao,
         googleCalendarId: lab.googleCalendarId,
       },

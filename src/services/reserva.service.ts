@@ -85,7 +85,7 @@ export class ReservaService {
       async (tx) => {
         const reserva = await tx.solicitacaoReserva.findUniqueOrThrow({
           where:  { id: reservaId },
-          select: { status: true },
+          select: { status: true, softwaresUtilizados: true },
         })
 
         if (!transicaoValida(reserva.status, 'CONFIRMADA')) {
@@ -118,6 +118,38 @@ export class ReservaService {
           where: { id: reservaId },
           data:  { laboratorioId: input.laboratorioId, status: 'CONFIRMADA' },
         })
+
+        // Inferência de softwares: Adicionar softwares da reserva ao laboratório, se não existirem
+        if (reserva.softwaresUtilizados && reserva.softwaresUtilizados.trim() !== '') {
+          // Extrai softwares separando por vírgula ou " e ", limpando os espaços
+          const novosSoftwares = reserva.softwaresUtilizados
+            .split(/,|\se\s/i)
+            .map(s => s.trim())
+            .filter(s => s.length > 0)
+
+          if (novosSoftwares.length > 0) {
+            const lab = await tx.laboratorio.findUnique({
+              where: { id: input.laboratorioId },
+              select: { softwares: true }
+            })
+
+            if (lab) {
+              const softwaresAtuais = new Set(lab.softwares.map(s => s.toLowerCase()))
+              const paraAdicionar = novosSoftwares.filter(s => !softwaresAtuais.has(s.toLowerCase()))
+
+              if (paraAdicionar.length > 0) {
+                await tx.laboratorio.update({
+                  where: { id: input.laboratorioId },
+                  data: {
+                    softwares: {
+                      push: paraAdicionar
+                    }
+                  }
+                })
+              }
+            }
+          }
+        }
 
         await tx.historicoTramitacao.create({
           data: {

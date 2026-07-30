@@ -367,6 +367,39 @@ export function useLogsIntegracao(filtros?: { servico?: string; erro?: boolean; 
 
 type PaginatedLogs = PaginatedResponse<LogIntegracao, 'logs'>
 
+// ─── Filas Chamados (Configurações) ───────────────────────────────────────────
+
+export function useFilasChamados(ativos = true) {
+  return useQuery<{ filas: FilaChamado[] }>({
+    queryKey: ['filas-csc', { ativos }],
+    queryFn: () => axios.get('/api/configuracoes/filas-csc', { params: { ativos } }).then(r => r.data),
+  })
+}
+
+export function useCreateFilaChamado() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: any) => axios.post('/api/configuracoes/filas-csc', data).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['filas-csc'] }),
+  })
+}
+
+export function useUpdateFilaChamado(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: any) => axios.put(`/api/configuracoes/filas-csc/${id}`, data).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['filas-csc'] }),
+  })
+}
+
+export function useDeleteFilaChamado() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => axios.delete(`/api/configuracoes/filas-csc/${id}`).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['filas-csc'] }),
+  })
+}
+
 // ─── Tipos locais ─────────────────────────────────────────────────────────────
 
 type PaginatedResponse<T, K extends string> = {
@@ -381,9 +414,23 @@ type PaginatedTurmas = PaginatedResponse<Turma, 'turmas'>
 type PaginatedUsuarios = PaginatedResponse<UsuarioPublico, 'usuarios'>
 
 type Laboratorio = {
-  id: string; nome: string; codigo: string; capacidade: number
-  recursos: string[]; localizacao: string | null; ativo: boolean
+  id: string
+  nome: string
+  codigo: string
+  capacidade: number
+  recursos: string[]
+  softwares: string[]
+  localizacao: string | null
+  ativo: boolean
   googleCalendarId: string | null
+}
+
+type FilaChamado = {
+  id: string
+  nome: string
+  flexfield: string
+  disparaTeams: boolean
+  ativo: boolean
 }
 
 type Professor = {
@@ -481,4 +528,4 @@ type CalendarioLabs = AgendaSemanal & {
   eventos: (AgendaEvento & { turma?: string })[],
 }
 
-export type { Laboratorio, Professor, Turma, UsuarioPublico, SolicitacaoAcesso, ReservaResumo, ReservaDetalhe, KanbanCard }
+export type { Laboratorio, Professor, Turma, UsuarioPublico, SolicitacaoAcesso, ReservaResumo, ReservaDetalhe, KanbanCard, FilaChamado }

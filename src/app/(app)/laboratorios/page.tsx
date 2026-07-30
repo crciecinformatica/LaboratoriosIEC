@@ -29,6 +29,7 @@ export default function LaboratoriosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Laboratorio | null>(null)
   const [recursosInput, setRecursosInput] = useState('')
+  const [softwaresInput, setSoftwaresInput] = useState('')
 
   const { data, isLoading } = useLaboratorios(search, page)
   const criar = useCreateLaboratorio()
@@ -40,7 +41,7 @@ export default function LaboratoriosPage() {
   const limit = data?.limit ?? 20
 
   const podeEditar = ['OPERADOR_TI', 'ADMINISTRADOR'].includes(session?.user.perfil ?? '')
-  const colSpan = podeEditar ? 8 : 7
+  const colSpan = podeEditar ? 9 : 8
 
   const atualizar = useUpdateLaboratorio(editing?.id ?? '')
 
@@ -52,24 +53,27 @@ export default function LaboratoriosPage() {
     formState: { errors, isSubmitting },
   } = useForm<LaboratorioFormInput>({
     resolver: zodResolver(criarLaboratorioSchema),
-    defaultValues: { recursos: [] },
+    defaultValues: { recursos: [], softwares: [] },
   })
 
   function openCreate() {
     setEditing(null)
     setRecursosInput('')
-    reset({ recursos: [], googleCalendarId: '' })
+    setSoftwaresInput('')
+    reset({ recursos: [], softwares: [], googleCalendarId: '' })
     setModalOpen(true)
   }
 
   function openEdit(lab: Laboratorio) {
     setEditing(lab)
     setRecursosInput(lab.recursos.join(', '))
+    setSoftwaresInput(lab.softwares ? lab.softwares.join(', ') : '')
     reset({
       nome: lab.nome,
       codigo: lab.codigo,
       capacidade: lab.capacidade,
       recursos: lab.recursos,
+      softwares: lab.softwares ?? [],
       localizacao: lab.localizacao ?? undefined,
       googleCalendarId: lab.googleCalendarId ?? '',
     })
@@ -147,6 +151,7 @@ export default function LaboratoriosPage() {
                 <th>Capacidade</th>
                 <th>Localização</th>
                 <th>Recursos</th>
+                <th>Softwares</th>
                 <th>Google Calendar</th>
                 <th>Status</th>
                 {podeEditar && <th className="text-right">Ações</th>}
@@ -184,6 +189,17 @@ export default function LaboratoriosPage() {
                       {lab.recursos.length > 3 && (
                         <span className="badge badge-gray text-[10px]">+{lab.recursos.length - 3}</span>
                       )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      {(lab.softwares || []).slice(0, 3).map((s) => (
+                        <span key={s} className="badge badge-blue text-[10px] bg-indigo-50 text-indigo-700 ring-indigo-600/20">{s}</span>
+                      ))}
+                      {(lab.softwares || []).length > 3 && (
+                        <span className="badge badge-gray text-[10px]">+{(lab.softwares || []).length - 3}</span>
+                      )}
+                      {!(lab.softwares || []).length && <span className="text-muted-foreground text-xs">—</span>}
                     </div>
                   </td>
                   <td>
@@ -280,6 +296,20 @@ export default function LaboratoriosPage() {
                 setRecursosInput(e.target.value)
                 const val = e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
                 setValue('recursos', val, { shouldValidate: true })
+              }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="label">Softwares (separados por vírgula)</label>
+            <input
+              className="input"
+              placeholder="Python, AutoCAD, Excel"
+              value={softwaresInput}
+              onChange={(e) => {
+                setSoftwaresInput(e.target.value)
+                const val = e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
+                setValue('softwares', val, { shouldValidate: true })
               }}
             />
           </div>

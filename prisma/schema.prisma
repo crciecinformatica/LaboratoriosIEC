@@ -139,6 +139,7 @@ model Laboratorio {
   codigo           String   @unique
   capacidade       Int
   recursos         String[]
+  softwares        String[] @default([])
   localizacao      String?
   ativo            Boolean  @default(true)
   criadoEm         DateTime @default(now())
@@ -288,4 +289,15 @@ enum EntidadeLog {
   PROFESSOR
   TURMA
   USUARIO
+}
+
+model FilaChamado {
+  id           String   @id @default(cuid())
+  nome         String
+  flexfield    String   @unique
+  disparaTeams Boolean  @default(false)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+
+  @@map("filas_chamados")
 }
