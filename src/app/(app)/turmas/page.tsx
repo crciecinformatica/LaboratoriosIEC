@@ -61,6 +61,9 @@ export default function TurmasPage() {
       codigo: turma.codigo,
       nome: turma.nome,
       semestre: turma.semestre,
+      curso: turma.curso,
+      numOferta: turma.numOferta ?? '',
+      codigoDisciplina: turma.codigoDisciplina,
       professorId: turma.professor.id,
     })
     setModalOpen(true)

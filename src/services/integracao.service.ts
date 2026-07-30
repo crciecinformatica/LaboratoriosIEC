@@ -94,6 +94,7 @@ export class IntegracoesService {
     const config = getCscConfig()
 
     // Validar configuração CSC obrigatória
+    let protocoloIec: string | undefined
     if (!config.apiUrl || !config.token || !config.catalogoId || !config.flexFieldIec) {
       const msg = 'Variáveis de ambiente CSC não configuradas. Verifique CSC_API_URL, CSC_TOKEN, CSC_CATALOGO_ID, CSC_FLEX_FIELD_103 (e suas variantes _PRODUCAO/_HOMOLOGACAO)'
       console.error('[CSC] Configuração incompleta:', msg)
@@ -107,7 +108,6 @@ export class IntegracoesService {
       // Não bloqueia o fluxo — apenas loga
     } else {
       // Ticket A (CSC IEC) — abre para TODAS as modalidades (PRESENCIAL, REMOTO, RAS)
-      let protocoloIec: string | undefined
       try {
         const resp = await abrirChamadoCSC({
           descricao: descricaoCSC,
@@ -144,8 +144,8 @@ export class IntegracoesService {
     }
 
     // Ticket B (Praça da Liberdade) — APENAS para PRESENCIAL se o flexfield estiver configurado no .env
+    let protocoloPracaLiberdade: string | undefined
     if (reserva.modalidadeReserva === 'PRESENCIAL' && config.flexFieldPraca) {
-      let protocoloPracaLiberdade: string | undefined
       try {
         const resp = await abrirChamadoCSC({
           descricao: descricaoCSC,
@@ -159,34 +159,33 @@ export class IntegracoesService {
           data: { reservaId, usuarioId: operadorId, evento: TipoEvento.ENVIO_CSC, metadados: { protocolo: protocoloPracaLiberdade, fila: 'PRACA_LIBERDADE' } },
         })
         await prisma.logIntegracao.create({
-                  data: {
-                    servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST', statusHttp: 200,
-                    payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
-                    resposta: { protocolo: protocoloPracaLiberdade },
-                  },
-                })
+          data: {
+            servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST', statusHttp: 200,
+            payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
+            resposta: { protocolo: protocoloPracaLiberdade },
+          },
+        })
       } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              await prisma.logIntegracao.create({
-                data: {
-                  servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST',
-                  statusHttp: err instanceof CscApiError ? err.statusHttp : undefined,
-                  payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
-                  erro: msg,
-                  ...(err instanceof CscApiError && err.responseBody ? { resposta: sanitizeForJson(err.responseBody) } : {}),
-                },
-              })
+        const msg = err instanceof Error ? err.message : String(err)
+        await prisma.logIntegracao.create({
+          data: {
+            servico: 'CSC_PRACA_LIBERDADE', endpoint: config.apiUrl ?? '', metodo: 'POST',
+            statusHttp: err instanceof CscApiError ? err.statusHttp : undefined,
+            payload: { Descricao: descricaoCSC.substring(0, 200), LoginSolicitante: loginSolicitante, codigoPessoaFallbackUsado },
+            erro: msg,
+            ...(err instanceof CscApiError && err.responseBody ? { resposta: sanitizeForJson(err.responseBody) } : {}),
+          },
+        })
         console.error('[CSC_PRACA_LIBERDADE] Falha ao abrir chamado:', msg)
-        // Ticket B falhou — NÃO envia Teams card (regra: card só com protocolo da Praça da Liberdade)
-        return
       }
-
-      // Teams card — APENAS quando Ticket B (Praça da Liberdade) SUCCEDE
-      // O card carrega APENAS o protocolo da Praça da Liberdade
-      await this._enviarTeams(reservaId, operadorId,
-        this._montarPayloadTeams(reserva, 'CRIACAO', { cscProtocolo: protocoloPracaLiberdade! }))
     }
-    // Para REMOTO/RAS: não tenta Ticket B, logo não envia Teams card
+
+    // Teams card — Envia com protocolo da Praça (prioridade) ou IEC (fallback)
+    const protocoloParaTeams = protocoloPracaLiberdade || protocoloIec
+    if (protocoloParaTeams) {
+      await this._enviarTeams(reservaId, operadorId,
+        this._montarPayloadTeams(reserva, 'CRIACAO', { cscProtocolo: protocoloParaTeams }))
+    }
   }
 
   private static async _enviarTeams(reservaId: string, usuarioId: string, payload: TeamsNotificacaoPayload) {
@@ -240,7 +239,7 @@ export class IntegracoesService {
       linhasDatas,
       '',
       `Solicitante: ${reserva.nomeSolicitanteExterno ?? reserva.solicitante?.nome ?? 'Desconhecido'} (${reserva.emailSolicitanteExterno ?? reserva.solicitante?.email ?? 'Sem email'})`,
-    ].filter((l) => l !== null).join('\\n')
+    ].filter((l) => l !== null).join('\n')
   }
 
   private static _montarPayloadTeams(
