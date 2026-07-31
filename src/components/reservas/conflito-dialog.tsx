@@ -31,7 +31,7 @@ interface DataForm {
 }
 
 function formatarDia(iso: string): string {
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
 }
 
 export function ConflitoDialog({ open, onClose, reservaId, laboratorioId, datasConflito, onSucesso }: Props) {

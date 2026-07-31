@@ -44,7 +44,7 @@ const colorMap: Record<string, string> = {
 }
 
 function formatarDia(dia: Date | string): string {
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(dia))
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(dia))
 }
 
 function resumoDatas(datas: { dia: Date | string }[]): string {

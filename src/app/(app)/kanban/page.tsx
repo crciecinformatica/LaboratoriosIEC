@@ -38,7 +38,7 @@ const columnBorderVar: Record<string, string> = {
 }
 
 function formatarDia(iso: string | Date): string {
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
 }
 
 function resumoDatas(datas: KanbanCard['datas']): string {

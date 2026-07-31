@@ -437,7 +437,7 @@ export default function RelatoriosPage() {
                             className="cursor-pointer hover:bg-accent transition"
                           >
                             <td className="text-xs text-muted-foreground whitespace-nowrap">
-                              {new Intl.DateTimeFormat('pt-BR', {
+                              {new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo',
                                 day: '2-digit', month: '2-digit', year: 'numeric',
                                 hour: '2-digit', minute: '2-digit',
                               }).format(new Date(log.criadoEm))}
@@ -508,7 +508,7 @@ export default function RelatoriosPage() {
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Data/Hora</p>
                       <p className="text-sm text-foreground">
-                        {new Intl.DateTimeFormat('pt-BR', {
+                        {new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo',
                           day: '2-digit', month: '2-digit', year: 'numeric',
                           hour: '2-digit', minute: '2-digit', second: '2-digit',
                         }).format(new Date(auditLogSelecionado.criadoEm))}

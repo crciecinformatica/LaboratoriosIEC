@@ -31,7 +31,7 @@ const colorMap: Record<string, string> = {
 }
 
 function formatarDia(iso: string | Date): string {
-  return new Intl.DateTimeFormat('pt-BR').format(new Date(iso))
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
 }
 
 // ─── Sub-componente: lista de datas da reserva ────────────────────────────────
@@ -285,7 +285,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
           </div>
           <p className="text-sm text-muted-foreground mt-1">{reserva.turma.nome} — {reserva.turma.curso}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Criada em {new Date(reserva.criadoEm).toLocaleString('pt-BR')}
+            Criada em {new Date(reserva.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
           </p>
         </div>
       </div>
