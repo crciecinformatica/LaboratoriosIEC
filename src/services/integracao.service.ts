@@ -213,7 +213,7 @@ export class IntegracoesService {
     const linhasDatas = reserva.datas.map((d) => {
       const dia = new Intl.DateTimeFormat('pt-BR').format(d.dia)
       return `- ${dia} das ${d.horaInicio} às ${d.horaFim}`
-    }).join('\\n')
+    }).join('\n')
 
     return [
       'Solicitação de Reserva de Laboratório',
