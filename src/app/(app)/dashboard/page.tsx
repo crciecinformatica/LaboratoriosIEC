@@ -11,11 +11,12 @@ async function getDashboardData(userId: string, perfil: string) {
   const isApoio = perfil === 'APOIO_ACADEMICO'
   const where   = isApoio ? { solicitanteId: userId } : {}
 
-  const [total, confirmadas, aguardando, conflitos, recentes] = await Promise.all([
-    prisma.solicitacaoReserva.count({ where }),
-    prisma.solicitacaoReserva.count({ where: { ...where, status: 'CONFIRMADA' } }),
-    prisma.solicitacaoReserva.count({ where: { ...where, status: 'AGUARDANDO_CONFIRMACAO' } }),
-    prisma.solicitacaoReserva.count({ where: { ...where, status: 'CONFLITO_DE_DATAS' } }),
+  const [stats, recentes] = await Promise.all([
+    prisma.solicitacaoReserva.groupBy({
+      by: ['status'],
+      where,
+      _count: true,
+    }),
     prisma.solicitacaoReserva.findMany({
       where,
       include: {
@@ -28,6 +29,11 @@ async function getDashboardData(userId: string, perfil: string) {
       take: 5,
     }),
   ])
+
+  const total = stats.reduce((acc, curr) => acc + curr._count, 0)
+  const confirmadas = stats.find(s => s.status === 'CONFIRMADA')?._count ?? 0
+  const aguardando = stats.find(s => s.status === 'AGUARDANDO_CONFIRMACAO')?._count ?? 0
+  const conflitos = stats.find(s => s.status === 'CONFLITO_DE_DATAS')?._count ?? 0
 
   return { total, confirmadas, aguardando, conflitos, recentes }
 }
