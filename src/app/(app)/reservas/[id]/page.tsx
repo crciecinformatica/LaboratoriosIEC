@@ -167,6 +167,8 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
   const [labId,  setLabId]  = useState('')
   const [motivo, setMotivo] = useState('')
   const [modalConflitoAberto, setModalConflitoAberto] = useState(false)
+  const [modalConfirmarAberto, setModalConfirmarAberto] = useState(false)
+  const [modalRejeitarAberto, setModalRejeitarAberto] = useState(false)
   
   const [modalIntegracoesAberto, setModalIntegracoesAberto] = useState(false)
   const [filaSelecionada, setFilaSelecionada] = useState<string>('')
@@ -186,6 +188,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
     try {
       await confirmar.mutateAsync({ reservaId: id, laboratorioId: labId })
       toast.success('Reserva confirmada!')
+      setModalConfirmarAberto(false)
     } catch (e: unknown) {
       toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao confirmar')
     }
@@ -212,6 +215,7 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       await rejeitar.mutateAsync({ reservaId: id, motivoRejeicao: motivo })
       toast.success('Reserva rejeitada.')
       setMotivo('')
+      setModalRejeitarAberto(false)
     } catch (e: unknown) {
       toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao rejeitar')
     }
@@ -404,36 +408,19 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
       {podeAgir && (
         <div className="card p-5 flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-foreground">Ações do operador</h2>
-          <div className="form-row">
-            <div className="form-group flex-1">
-              <label className="label">Laboratório para confirmação</label>
-              <select className="input" value={labId} onChange={(e) => setLabId(e.target.value)}>
-                <option value="">Selecione</option>
-                {laboratorios.map((l) => (
-                  <option key={l.id} value={l.id}>{l.nome} ({l.codigo})</option>
-                ))}
-              </select>
-            </div>
-            <button className="btn-primary btn-sm self-end" onClick={handleConfirmar} disabled={confirmar.isPending}>
+          <div className="flex flex-wrap gap-3">
+            <button className="btn-primary btn-sm flex items-center gap-2" onClick={() => setModalConfirmarAberto(true)}>
               <Check className="w-3.5 h-3.5" /> Confirmar
             </button>
-          </div>
-          {podeConflito && (
-            <div>
-              <button className="btn-secondary btn-sm" onClick={() => setModalConflitoAberto(true)}>
-                <AlertTriangle className="w-3.5 h-3.5" /> Marcar conflito de datas
+            {podeConflito && (
+              <button className="btn-secondary btn-sm flex items-center gap-2" onClick={() => setModalConflitoAberto(true)}>
+                <AlertTriangle className="w-3.5 h-3.5" /> Marcar conflito
               </button>
-            </div>
-          )}
-          <div className="form-group">
-            <label className="label">Motivo da rejeição</label>
-            <textarea className="input min-h-[60px]" value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Descreva o motivo (mín. 10 caracteres)..." />
+            )}
+            <button className="btn-danger btn-sm flex items-center gap-2" onClick={() => setModalRejeitarAberto(true)}>
+              <X className="w-3.5 h-3.5" /> Rejeitar
+            </button>
           </div>
-          <button className="btn-danger btn-sm self-start" onClick={handleRejeitar} disabled={rejeitar.isPending}>
-            <X className="w-3.5 h-3.5" /> Rejeitar
-          </button>
         </div>
       )}
 
@@ -463,6 +450,51 @@ export default function ReservaDetalhePage({ params }: { params: Promise<{ id: s
         datas={reserva.datas}
         onSucesso={() => setModalConflitoAberto(false)}
       />
+
+      <Modal open={modalConfirmarAberto} onClose={() => setModalConfirmarAberto(false)} title="Confirmar Reserva">
+        <div className="px-6 py-4 flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Selecione o laboratório para alocar a solicitação.
+          </p>
+          <div className="form-group">
+            <label className="label">Laboratório para confirmação</label>
+            <select className="input" value={labId} onChange={(e) => setLabId(e.target.value)}>
+              <option value="">Selecione</option>
+              {laboratorios.map((l) => (
+                <option key={l.id} value={l.id}>{l.nome} ({l.codigo})</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setModalConfirmarAberto(false)}>Cancelar</button>
+            <button className="btn-primary btn-sm flex items-center gap-2" onClick={handleConfirmar} disabled={confirmar.isPending || !labId}>
+              {confirmar.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={modalRejeitarAberto} onClose={() => setModalRejeitarAberto(false)} title="Rejeitar Reserva">
+        <div className="px-6 py-4 flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Informe o motivo para rejeitar esta solicitação.
+          </p>
+          <div className="form-group">
+            <label className="label">Motivo da rejeição</label>
+            <textarea className="input min-h-[80px]" value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Descreva o motivo (mín. 10 caracteres)..." />
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-2">
+            <button type="button" className="btn-secondary btn-sm" onClick={() => setModalRejeitarAberto(false)}>Cancelar</button>
+            <button className="btn-danger btn-sm flex items-center gap-2" onClick={handleRejeitar} disabled={rejeitar.isPending || motivo.length < 10}>
+              {rejeitar.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+              Rejeitar
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal open={modalIntegracoesAberto} onClose={() => setModalIntegracoesAberto(false)} title="Realizar Solicitação">
         <form onSubmit={handleIntegracoes} className="px-6 py-4 flex flex-col gap-4">
